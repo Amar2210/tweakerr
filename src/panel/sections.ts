@@ -1,7 +1,7 @@
 import type { Editor } from '../editor';
 import { elementKey } from '../doc/actions';
 import { canHaveMarkers, isStructural, isSvgChild, isSvgRoot } from '../doc/kinds';
-import { ensureOwnMarker, followsLine, markerColor, markerOf, type MarkerEnd, setMarkerColor } from '../doc/markers';
+import { ensureGroupMarker, followsLine, markerColor, markerOf, type MarkerEnd, setMarkerColor } from '../doc/markers';
 import { collectFonts, collectPalette } from '../doc/palette';
 import { computed, setAttr, setStyle } from '../doc/style';
 import { addSvgTranslate, formatCssTranslate, parseCssTranslate, r2, readSvgTranslate } from '../util/geometry';
@@ -47,44 +47,71 @@ const DASHES = [
 ];
 
 /**
- * Build the property sections for one selected element. Every setter goes
- * through `editor.edit` with a merge key per element + property, so a
- * slider drag or scrub becomes a single undo step.
+ * Build the property sections for the selection. Fields show the main
+ * (last picked) element's values; every change is written to all selected
+ * elements. Setters go through `editor.edit` with a merge key per
+ * selection + property, so a slider drag or scrub is a single undo step.
  */
-export function buildSections(editor: Editor, el: Element): Section[] {
-  const id = elementKey(el);
+export function buildSections(editor: Editor, els: Element[]): Section[] {
+  const el = els[els.length - 1];
+  const multi = els.length > 1;
+  const key = els.map(elementKey).join('+');
   const palette = () => (editor.doc ? collectPalette(editor.doc) : []);
 
-  const css = (prop: string, opts: { read?: () => string; write?: (v: string) => void } = {}): Binding<string> => ({
+  const css: Css = (prop, opts = {}) => ({
     get: opts.read ?? (() => computed(el, prop)),
-    set: (v) => editor.edit(`Change ${prop}`, () => (opts.write ? opts.write(v) : setStyle(el, prop, v)), `${id}:${prop}`),
+    set: (v) =>
+      editor.edit(`Change ${prop}`, () => {
+        for (const e of els) opts.write ? opts.write(e, v) : setStyle(e, prop, v);
+      }, `${key}:${prop}`),
   });
-  const attr = (name: string): Binding<string> => ({
+  const attr: Attr = (name) => ({
     get: () => el.getAttribute(name) ?? '',
-    set: (v) => editor.edit(`Change ${name}`, () => setAttr(el, name, v === '' ? null : v), `${id}:@${name}`),
+    set: (v) => editor.edit(`Change ${name}`, () => els.forEach((e) => setAttr(e, name, v === '' ? null : v)), `${key}:@${name}`),
   });
 
-  if (isStructural(el)) return pageSections(editor, el, css, palette);
-  if (isSvgChild(el)) return svgSections(editor, el, css, attr, palette);
+  if (!multi && isStructural(el)) return pageSections(editor, el, css, palette);
+  const svgCount = els.filter(isSvgChild).length;
+  if (svgCount > 0 && svgCount < els.length) return mixedSections(css);
+  if (svgCount) return svgSections(editor, el, els, css, attr, palette);
 
   const sections: Section[] = [];
   const hasText = !isSvgRoot(el) && !['img', 'hr', 'video', 'canvas', 'iframe'].includes(el.localName);
-  if (hasText) sections.push(textSection(editor, el, css, palette));
+  if (hasText) sections.push(textSection(editor, el, els, css, palette));
   sections.push(fillSection(el, css, palette));
-  sections.push(layoutSection(editor, el, css));
+  sections.push(layoutSection(editor, el, els, css));
   sections.push(spacingSection(css));
   sections.push(effectsSection(css));
-  const content = contentSection(el, attr);
-  if (content) sections.push(content);
-  sections.push(customSection(editor, el));
+  if (!multi) {
+    const content = contentSection(el, attr);
+    if (content) sections.push(content);
+    sections.push(customSection(editor, el));
+  }
   return sections;
 }
 
-type Css = (prop: string, opts?: { read?: () => string; write?: (v: string) => void }) => Binding<string>;
+/** HTML and SVG picked together: only what both understand. */
+function mixedSections(css: Css): Section[] {
+  const opacity = css('opacity');
+  return [
+    {
+      title: 'Effects',
+      controls: [
+        noteControl('Boxes and shapes are selected together, so only the settings they share are shown.'),
+        sliderControl('Opacity', { min: 0, max: 100, suffix: '%' }, {
+          get: () => Math.round((parseFloat(opacity.get()) || 0) * 100),
+          set: (v, final) => opacity.set(String(r2(v / 100)), final),
+        }),
+      ],
+    },
+  ];
+}
+
+type Css = (prop: string, opts?: { read?: () => string; write?: (el: Element, v: string) => void }) => Binding<string>;
 type Attr = (name: string) => Binding<string>;
 type Palette = () => string[];
 
-function textSection(editor: Editor, el: Element, css: Css, palette: Palette): Section {
+function textSection(editor: Editor, el: Element, els: Element[], css: Css, palette: Palette): Section {
   const fonts = editor.doc ? collectFonts(editor.doc) : [];
   const align = css('text-align', {
     read: () => {
@@ -94,7 +121,7 @@ function textSection(editor: Editor, el: Element, css: Css, palette: Palette): S
   });
   const flag = (prop: string, on: string, off: string, test: (v: string) => boolean): Binding<boolean> => ({
     get: () => test(computed(el, prop)),
-    set: (v) => editor.edit(`Change ${prop}`, () => setStyle(el, prop, v ? on : off)),
+    set: (v) => editor.edit(`Change ${prop}`, () => els.forEach((e) => setStyle(e, prop, v ? on : off))),
   });
   return {
     title: 'Text',
@@ -135,10 +162,10 @@ function fillSection(el: Element, css: Css, palette: Palette): Section {
   }
   const borderWidth = css('border-width', {
     read: () => computed(el, 'border-top-width'),
-    write: (v) => {
-      setStyle(el, 'border-width', v);
+    write: (e, v) => {
+      setStyle(e, 'border-width', v);
       // A width alone shows nothing while the style is "none".
-      if (parseFloat(v) > 0 && computed(el, 'border-top-style') === 'none') setStyle(el, 'border-style', 'solid');
+      if (parseFloat(v) > 0 && computed(e, 'border-top-style') === 'none') setStyle(e, 'border-style', 'solid');
     },
   });
   controls.push(
@@ -150,20 +177,20 @@ function fillSection(el: Element, css: Css, palette: Palette): Section {
   return { title: 'Fill & border', controls };
 }
 
-function layoutSection(editor: Editor, el: Element, css: Css): Section {
+function layoutSection(editor: Editor, el: Element, els: Element[], css: Css): Section {
   const size = (dim: 'width' | 'height'): Binding<string> =>
     css(dim, {
       read: () => `${r2(el.getBoundingClientRect()[dim])}px`,
-      write: (v) => setStyle(el, dim, toContentSize(el, dim, v)),
+      write: (e, v) => setStyle(e, dim, toContentSize(e, dim, v)),
     });
   const shift = (axis: 0 | 1): Binding<string> =>
     css('translate', {
       read: () => `${parseCssTranslate(computed(el, 'translate'))[axis]}px`,
-      write: (v) => {
-        const cur = parseCssTranslate(computed(el, 'translate'));
+      write: (e, v) => {
+        const cur = parseCssTranslate(computed(e, 'translate'));
         cur[axis] = parseFloat(v) || 0;
-        if (computed(el, 'display') === 'inline') setStyle(el, 'display', 'inline-block');
-        setStyle(el, 'translate', formatCssTranslate(cur[0], cur[1]));
+        if (computed(e, 'display') === 'inline') setStyle(e, 'display', 'inline-block');
+        setStyle(e, 'translate', formatCssTranslate(cur[0], cur[1]));
       },
     });
   const z = css('z-index', {
@@ -171,10 +198,10 @@ function layoutSection(editor: Editor, el: Element, css: Css): Section {
       const v = computed(el, 'z-index');
       return v === 'auto' ? '' : v;
     },
-    write: (v) => {
-      setStyle(el, 'z-index', v);
+    write: (e, v) => {
+      setStyle(e, 'z-index', v);
       // z-index only works on positioned elements.
-      if (v && computed(el, 'position') === 'static') setStyle(el, 'position', 'relative');
+      if (v && computed(e, 'position') === 'static') setStyle(e, 'position', 'relative');
     },
   });
   return {
@@ -187,15 +214,17 @@ function layoutSection(editor: Editor, el: Element, css: Css): Section {
         {
           label: 'Reset move',
           title: 'Put it back where the layout places it',
-          run: () => editor.edit('Reset position', () => setStyle(el, 'translate', '')),
+          run: () => editor.edit('Reset position', () => els.forEach((e) => setStyle(e, 'translate', ''))),
         },
         {
           label: 'Auto size',
           title: 'Remove the width/height set here',
           run: () =>
             editor.edit('Auto size', () => {
-              setStyle(el, 'width', '');
-              setStyle(el, 'height', '');
+              for (const e of els) {
+                setStyle(e, 'width', '');
+                setStyle(e, 'height', '');
+              }
             }),
         },
       ]),
@@ -310,8 +339,9 @@ function pageSections(editor: Editor, el: Element, css: Css, palette: Palette): 
 
 // ---------------------------------------------------------------- SVG
 
-function svgSections(editor: Editor, el: Element, css: Css, attr: Attr, palette: Palette): Section[] {
-  const id = elementKey(el);
+function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr: Attr, palette: Palette): Section[] {
+  const multi = els.length > 1;
+  const key = els.map(elementKey).join('+');
   const sections: Section[] = [];
   const shape: Control[] = [];
   const isLine = el.localName === 'line' || el.localName === 'polyline';
@@ -352,9 +382,8 @@ function svgSections(editor: Editor, el: Element, css: Css, attr: Attr, palette:
           },
           set: (v) =>
             editor.edit('Arrowhead colour', () => {
-              const own = ensureOwnMarker(el, which);
-              if (own) setMarkerColor(own, v);
-            }, `${id}:marker-${which}`),
+              for (const own of ensureGroupMarker(els.filter(canHaveMarkers), which)) setMarkerColor(own, v);
+            }, `${key}:marker-${which}`),
         }, { palette }),
       );
     }
@@ -365,19 +394,20 @@ function svgSections(editor: Editor, el: Element, css: Css, attr: Attr, palette:
     get: () => String(readSvgTranslate(el.getAttribute('transform'))[axis]),
     set: (v) =>
       editor.edit('Move', () => {
-        const t = el.getAttribute('transform');
-        const cur = readSvgTranslate(t);
-        const target = parseFloat(v) || 0;
-        const d = target - cur[axis];
-        setAttr(el, 'transform', addSvgTranslate(t, axis === 0 ? d : 0, axis === 1 ? d : 0) || null);
-      }, `${id}:shift`),
+        for (const e of els) {
+          const t = e.getAttribute('transform');
+          const d = (parseFloat(v) || 0) - readSvgTranslate(t)[axis];
+          setAttr(e, 'transform', addSvgTranslate(t, axis === 0 ? d : 0, axis === 1 ? d : 0) || null);
+        }
+      }, `${key}:shift`),
   });
   const geo: Control[] = [
     gridControl('Moved', [numberControl('X', shift(0), { inline: true, unit: '' }), numberControl('Y', shift(1), { inline: true, unit: '' })]),
   ];
   const nums = (names: string[]) =>
     gridControl('', names.map((n) => numberControl(n, attr(n), { inline: true, unit: '' })), 2);
-  switch (el.localName) {
+  // Exact coordinates only make sense for one shape at a time.
+  if (!multi) switch (el.localName) {
     case 'rect':
       geo.push(nums(['x', 'y', 'width', 'height']), gridControl('', [numberControl('rx', attr('rx'), { inline: true, unit: '', min: 0 })], 2));
       break;
@@ -402,12 +432,13 @@ function svgSections(editor: Editor, el: Element, css: Css, attr: Attr, palette:
 
   if (el.localName === 'text' || el.localName === 'tspan') {
     const text: Control[] = [];
-    if (el.children.length === 0) {
+    // With several selected the words differ per element; the styles below still apply to all.
+    if (!multi && el.children.length === 0) {
       text.push(textControl('Text', {
         get: () => el.textContent ?? '',
-        set: (v) => editor.edit('Edit text', () => { el.textContent = v; }, `${id}:text`),
+        set: (v) => editor.edit('Edit text', () => { el.textContent = v; }, `${key}:text`),
       }));
-    } else {
+    } else if (!multi) {
       text.push(noteControl('Has styled parts — select a part to edit its words.'));
     }
     text.push(
@@ -423,7 +454,7 @@ function svgSections(editor: Editor, el: Element, css: Css, attr: Attr, palette:
     sections.push({ title: 'Text', controls: text });
   }
 
-  sections.push(customSection(editor, el));
+  if (!multi) sections.push(customSection(editor, el));
   return sections;
 }
 

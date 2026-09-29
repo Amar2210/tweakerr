@@ -14,6 +14,8 @@ const BOX_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
 export class Overlay {
   private hoverBox = h('div', { class: 'ov-hover' });
   private selBox = h('div', { class: 'ov-select' });
+  /** Extra outlines for the other elements of a multi-selection. */
+  private groupBoxes = h('div', { class: 'ov-group' });
   private label = h('div', { class: 'ov-label' });
   private handles = h('div', { class: 'ov-handles' });
   private guides = h('div', { class: 'ov-guides' });
@@ -25,7 +27,7 @@ export class Overlay {
     private stage: Stage,
     readonly root: HTMLElement,
   ) {
-    root.append(this.hoverBox, this.selBox, this.handles, this.guides, this.label);
+    root.append(this.hoverBox, this.groupBoxes, this.selBox, this.handles, this.guides, this.label);
     for (const ev of ['selection', 'hover', 'change', 'layout', 'interaction', 'load'] as const) {
       editor.on(ev, () => this.queue());
     }
@@ -48,10 +50,10 @@ export class Overlay {
   }
 
   render(): void {
-    const { selected, hovered, busy } = this.editor;
+    const { selected, hovered, busy, selection } = this.editor;
     this.root.classList.toggle('passthrough', busy === 'text');
 
-    if (hovered && hovered !== selected && !busy) {
+    if (hovered && !this.editor.isSelected(hovered) && !busy) {
       place(this.hoverBox, this.stage.toStage(this.stage.docRect(hovered)));
       this.hoverBox.hidden = false;
     } else {
@@ -68,12 +70,21 @@ export class Overlay {
       place(this.selBox, box);
       this.selBox.hidden = false;
       this.selBox.classList.toggle('editing', busy === 'text');
-      this.label.textContent = `${describe(selected)}  ${Math.round(doc.width)} × ${Math.round(doc.height)}`;
+      this.label.textContent =
+        selection.length > 1 ? `${selection.length} selected` : `${describe(selected)}  ${Math.round(doc.width)} × ${Math.round(doc.height)}`;
       this.label.style.left = `${box.left}px`;
       this.label.style.top = `${Math.max(0, box.top - 22)}px`;
       this.label.hidden = false;
-      if (busy !== 'text') this.renderHandles(selected, box);
+      if (busy !== 'text' && selection.length === 1) this.renderHandles(selected, box);
     }
+
+    this.groupBoxes.replaceChildren(
+      ...selection.slice(0, -1).map((el) => {
+        const b = h('div', { class: 'ov-select ov-select-extra' });
+        place(b, this.stage.toStage(this.stage.docRect(el)));
+        return b;
+      }),
+    );
 
     this.guides.replaceChildren(
       ...this.guideList.map((g) => {

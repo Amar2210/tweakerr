@@ -1,6 +1,7 @@
 import type { Editor } from '../editor';
-import { deleteSelected, duplicateSelected, selectParent, toggleHidden } from '../doc/actions';
+import { deleteSelected, duplicateSelected, elementKey, selectParent, toggleHidden } from '../doc/actions';
 import { describe, isStructural } from '../doc/kinds';
+import { sameColour, sameType, type Match } from '../doc/similar';
 import { inlineStyle } from '../doc/style';
 import { h } from '../util/dom';
 import { icon, type IconName } from '../util/icons';
@@ -11,7 +12,8 @@ import { buildSections } from './sections';
 export class PropertiesPanel {
   private controls: Control[] = [];
   private closed = new Set<string>();
-  private builtFor: Element | null = null;
+  /** Which selection the panel was built for, to keep the scroll position across rebuilds. */
+  private builtFor = '';
 
   constructor(
     private editor: Editor,
@@ -41,19 +43,23 @@ export class PropertiesPanel {
   }
 
   build(): void {
-    const { doc, selected } = this.editor;
-    const scroll = this.builtFor === selected ? this.root.scrollTop : 0;
+    const { doc, selected, selection } = this.editor;
+    const built = selection.map(elementKey).join('+');
+    const scroll = this.builtFor === built ? this.root.scrollTop : 0;
     this.controls = [];
-    this.builtFor = selected;
+    this.builtFor = built;
 
     if (!doc?.body) {
       this.root.replaceChildren(h('div', { class: 'panel-empty' }, h('p', { text: 'Open an HTML file to start editing.' })));
       return;
     }
+    const els = selection.length ? selection : [doc.body];
     const el = selected ?? doc.body;
 
     const parts: HTMLElement[] = [this.header(el, !selected)];
-    for (const section of buildSections(this.editor, el)) {
+    const similar = selected && !isStructural(selected) ? this.similarRow(selected) : null;
+    if (similar) parts.push(similar);
+    for (const section of buildSections(this.editor, els)) {
       const details = h('details', { class: 'section' }, h('summary', { text: section.title }));
       details.open = !this.closed.has(section.title);
       details.addEventListener('toggle', () => {
@@ -77,8 +83,9 @@ export class PropertiesPanel {
     );
     if (isPage) return h('div', { class: 'sel-header' }, title);
 
+    const count = this.editor.selection.length;
     const structural = isStructural(el);
-    const hidden = inlineStyle(el, 'display') === 'none';
+    const hidden = this.editor.selectionRoots.some((e) => inlineStyle(e, 'display') === 'none');
     const btn = (name: IconName, tip: string, run: () => void, opts: { disabled?: boolean; danger?: boolean } = {}) => {
       const b = h(
         'button',
@@ -94,6 +101,12 @@ export class PropertiesPanel {
       return b;
     };
     const parent = el.parentElement;
+    if (count > 1) {
+      title.replaceChildren(
+        h('span', { class: 'sel-tag', text: `${count} selected` }),
+        h('span', { class: 'sel-hint', text: 'Changes apply to all of them' }),
+      );
+    }
     return h(
       'div',
       { class: 'sel-header' },
@@ -101,11 +114,31 @@ export class PropertiesPanel {
       h(
         'div',
         { class: 'sel-actions' },
-        btn('parent', 'Select parent (Shift+Enter)', () => selectParent(this.editor), { disabled: !parent || parent.localName === 'html' }),
+        count > 1 ? null : btn('parent', 'Select parent (Shift+Enter)', () => selectParent(this.editor), { disabled: !parent || parent.localName === 'html' }),
         btn('duplicate', 'Duplicate (Ctrl+D)', () => duplicateSelected(this.editor), { disabled: structural }),
         btn(hidden ? 'eyeOff' : 'eye', hidden ? 'Show' : 'Hide', () => toggleHidden(this.editor), { disabled: structural }),
         btn('trash', 'Delete (Del)', () => deleteSelected(this.editor), { disabled: structural, danger: true }),
       ),
     );
+  }
+
+  /** "Select all like this": same type, and same colour, as the main selected element. */
+  private similarRow(el: Element): HTMLElement | null {
+    const current = new Set(this.editor.selection);
+    const button = (m: Match | null) => {
+      if (!m || m.elements.length < 2) return null;
+      const already = m.elements.length === current.size && m.elements.every((e) => current.has(e));
+      const b = h('button', {
+        class: `similar-btn${already ? ' on' : ''}`,
+        text: `${m.label} · ${m.elements.length}`,
+        title: already ? `All ${m.elements.length} are selected` : `Select all ${m.elements.length} (${m.detail})`,
+        attrs: { type: 'button' },
+        on: { click: () => this.editor.setSelection([...m.elements.filter((e) => e !== el), el]) },
+      });
+      return b;
+    };
+    const buttons = [button(sameType(el)), button(sameColour(el))].filter((b): b is HTMLButtonElement => !!b);
+    if (!buttons.length) return null;
+    return h('div', { class: 'similar' }, h('span', { class: 'similar-label', text: 'Select all like this' }), ...buttons);
   }
 }

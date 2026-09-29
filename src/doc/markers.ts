@@ -62,20 +62,34 @@ export function uniqueId(doc: Document, base: string): string {
   return id;
 }
 
-/** Give `el` its own copy of its start/end marker if others share it. Call inside an edit. */
-export function ensureOwnMarker(el: Element, which: MarkerEnd): Element | null {
-  const marker = markerOf(el, which);
-  if (!marker) return null;
-  const others = markerUsers(el.ownerDocument, marker).filter((u) => u !== el);
-  // Also shared if this element uses the same marker at its other end.
-  const otherEnd = which === 'start' ? 'end' : 'start';
-  const selfShared = markerId(el, otherEnd) === marker.id || markerId(el, 'mid') === marker.id;
-  if (others.length === 0 && !selfShared) return marker;
-  const clone = marker.cloneNode(true) as Element;
-  clone.id = uniqueId(el.ownerDocument, `${marker.id}-${which}`);
-  marker.after(clone);
-  setStyle(el, `marker-${which}`, `url(#${clone.id})`);
-  return clone;
+/**
+ * Give these elements their own arrowhead at one end, then return it.
+ * Only copies when something outside the group also uses the marker (or a
+ * group member uses it at another end); the whole group shares one copy.
+ * Call inside an edit.
+ */
+export function ensureGroupMarker(els: Element[], which: MarkerEnd): Element[] {
+  const byMarker = new Map<Element, Element[]>();
+  for (const el of els) {
+    const m = markerOf(el, which);
+    if (m) byMarker.set(m, [...(byMarker.get(m) ?? []), el]);
+  }
+  const own: Element[] = [];
+  for (const [marker, group] of byMarker) {
+    const outsiders = markerUsers(marker.ownerDocument, marker).filter((u) => !group.includes(u));
+    const otherEnd = which === 'start' ? 'end' : 'start';
+    const selfShared = group.some((el) => markerId(el, otherEnd) === marker.id || markerId(el, 'mid') === marker.id);
+    if (outsiders.length === 0 && !selfShared) {
+      own.push(marker);
+      continue;
+    }
+    const clone = marker.cloneNode(true) as Element;
+    clone.id = uniqueId(marker.ownerDocument, `${marker.id}-${which}`);
+    marker.after(clone);
+    for (const el of group) setStyle(el, `marker-${which}`, `url(#${clone.id})`);
+    own.push(clone);
+  }
+  return own;
 }
 
 export function setMarkerColor(marker: Element, color: string): void {

@@ -98,10 +98,13 @@ export class LayersPanel {
     const row = h(
       'div',
       {
-        class: `layer-row${el === this.editor.selected ? ' selected' : ''}${hidden ? ' hidden-el' : ''}`,
+        class: `layer-row${this.editor.isSelected(el) ? ' selected' : ''}${hidden ? ' hidden-el' : ''}`,
         attrs: { role: 'treeitem' },
         on: {
-          click: () => this.editor.select(isBody ? null : el),
+          click: (e) => {
+            if (!isBody && (e.shiftKey || e.ctrlKey || e.metaKey)) this.editor.toggle(el);
+            else this.editor.select(isBody ? null : el);
+          },
           pointerenter: () => this.editor.hover(el),
           pointerleave: () => this.editor.hover(null),
         },

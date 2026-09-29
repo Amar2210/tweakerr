@@ -1,4 +1,5 @@
 import { History } from './doc/history';
+import { isStructural } from './doc/kinds';
 
 export type Device = 'desktop' | 'tablet' | 'phone';
 export const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 768, phone: 390 };
@@ -12,7 +13,7 @@ export interface OpenFile {
 
 type EventName =
   | 'load' // a new document was mounted
-  | 'selection' // selected element changed
+  | 'selection' // selection changed
   | 'hover' // hovered element changed
   | 'change' // the document was edited, undone or redone
   | 'layout' // page size, zoom or device width changed
@@ -28,7 +29,8 @@ export class Editor {
   history: History | null = null;
   file: OpenFile | null = null;
 
-  selected: Element | null = null;
+  /** Everything selected, in the order it was picked. Never contains html/head/body alongside others. */
+  selection: Element[] = [];
   hovered: Element | null = null;
 
   zoom = 1;
@@ -65,7 +67,7 @@ export class Editor {
   attach(doc: Document, file: OpenFile): void {
     this.doc = doc;
     this.file = file;
-    this.selected = null;
+    this.selection = [];
     this.hovered = null;
     this.history = new History(doc, () => {
       this.pruneSelection();
@@ -83,11 +85,49 @@ export class Editor {
     this.history.transact(label, fn, mergeKey);
   }
 
+  /** The main selected element (the last one picked): the panel shows its values. */
+  get selected(): Element | null {
+    return this.selection[this.selection.length - 1] ?? null;
+  }
+
+  get multi(): boolean {
+    return this.selection.length > 1;
+  }
+
+  isSelected(el: Element): boolean {
+    return this.selection.includes(el);
+  }
+
+  /** Select just this element (or nothing). */
   select(el: Element | null): void {
-    if (el && this.doc && !this.doc.contains(el)) el = null;
-    if (el === this.selected) return;
-    this.selected = el;
+    this.setSelection(el ? [el] : []);
+  }
+
+  /**
+   * Replace the selection. The last element becomes the main one.
+   * Page-level elements (html/head/body) can only be selected on their own.
+   */
+  setSelection(els: Element[]): void {
+    let next = [...new Set(els)].filter((e) => this.doc?.contains(e));
+    if (next.length > 1) next = next.filter((e) => !isStructural(e));
+    if (next.length === this.selection.length && next.every((e, i) => e === this.selection[i])) return;
+    this.selection = next;
     this.emit('selection');
+  }
+
+  /** Shift/Ctrl+click: add the element, or take it out if it's already selected. */
+  toggle(el: Element): void {
+    if (isStructural(el)) return;
+    if (this.isSelected(el)) this.setSelection(this.selection.filter((e) => e !== el));
+    else this.setSelection([...this.selection.filter((e) => !isStructural(e)), el]);
+  }
+
+  /**
+   * The selection without elements that sit inside another selected one,
+   * so moving or deleting a card and its heading together acts once.
+   */
+  get selectionRoots(): Element[] {
+    return this.selection.filter((e) => !this.selection.some((o) => o !== e && o.contains(e)));
   }
 
   hover(el: Element | null): void {
@@ -114,11 +154,12 @@ export class Editor {
     this.emit('file');
   }
 
-  /** Drop selection/hover that point at nodes an undo just removed. */
+  /** Drop selected/hovered nodes that an undo just removed. */
   private pruneSelection(): void {
     if (!this.doc) return;
-    if (this.selected && !this.doc.contains(this.selected)) {
-      this.selected = null;
+    const kept = this.selection.filter((e) => this.doc!.contains(e));
+    if (kept.length !== this.selection.length) {
+      this.selection = kept;
       this.emit('selection');
     }
     if (this.hovered && !this.doc.contains(this.hovered)) this.hovered = null;

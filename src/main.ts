@@ -7,7 +7,7 @@ import { TextEditor } from './canvas/textedit';
 import { Pointer } from './canvas/pointer';
 import { PropertiesPanel } from './panel/properties';
 import { LayersPanel } from './panel/layers';
-import { deleteSelected, duplicateSelected, nudgeSelected, selectFirstChild, selectParent } from './doc/actions';
+import { deleteSelected, duplicateSelected, nudgeSelected, selectFirstChild, selectParent, selectSiblings } from './doc/actions';
 import { describe, isStructural, isTextEditable } from './doc/kinds';
 import { serializeDocument } from './doc/serialize';
 import { canSaveInPlace, download, fromDrop, pickFile, saveAs, saveToHandle, type PickedFile } from './io/files';
@@ -226,6 +226,7 @@ function updateCrumbs(): void {
     });
     parts.push(b);
   });
+  if (editor.multi) parts.push(h('span', { class: 'crumb-more', text: `+ ${editor.selection.length - 1} more selected` }));
   nav.replaceChildren(...parts);
   nav.scrollLeft = nav.scrollWidth;
 }
@@ -291,6 +292,11 @@ function onKey(e: KeyboardEvent): void {
     duplicateSelected(editor);
     return;
   }
+  if (mod && key === 'a' && editor.selected) {
+    e.preventDefault();
+    selectSiblings(editor);
+    return;
+  }
   if (mod || e.altKey) return;
 
   const sel = editor.selected;
@@ -315,6 +321,7 @@ function onKey(e: KeyboardEvent): void {
     case 'Enter':
       if (!sel) return;
       e.preventDefault();
+      if (editor.multi) editor.select(sel);
       if (e.shiftKey) selectParent(editor);
       else if (isTextEditable(sel)) text.start(sel);
       else selectFirstChild(editor);

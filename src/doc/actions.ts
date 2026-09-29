@@ -7,48 +7,62 @@ import { computed, inlineStyle, setStyle } from './style';
 /** Element-level commands shared by the keyboard, the panel and the layers list. */
 
 export function deleteSelected(editor: Editor): void {
-  const el = editor.selected;
-  if (!el || isStructural(el)) return;
-  const next = el.parentElement;
-  editor.edit('Delete', () => el.remove());
+  const els = editor.selectionRoots.filter((e) => !isStructural(e));
+  if (!els.length) return;
+  const next = els.length === 1 ? els[0].parentElement : null;
+  editor.edit(els.length > 1 ? `Delete ${els.length} elements` : 'Delete', () => els.forEach((el) => el.remove()));
   editor.select(next && !isStructural(next) ? next : null);
 }
 
 export function duplicateSelected(editor: Editor): void {
-  const el = editor.selected;
-  if (!el || isStructural(el)) return;
-  let copy: Element | null = null;
-  editor.edit('Duplicate', () => {
-    copy = el.cloneNode(true) as Element;
-    // Keep ids unique so labels, anchors and markers still resolve.
-    for (const node of [copy, ...Array.from(copy.querySelectorAll('[id]'))]) {
-      if (node.id) node.id = uniqueId(el.ownerDocument, `${node.id}-copy`);
+  const els = editor.selectionRoots.filter((e) => !isStructural(e));
+  if (!els.length) return;
+  const copies: Element[] = [];
+  editor.edit(els.length > 1 ? `Duplicate ${els.length} elements` : 'Duplicate', () => {
+    for (const el of els) {
+      const copy = el.cloneNode(true) as Element;
+      // Keep ids unique so labels, anchors and markers still resolve.
+      for (const node of [copy, ...Array.from(copy.querySelectorAll('[id]'))]) {
+        if (node.id) node.id = uniqueId(el.ownerDocument, `${node.id}-copy`);
+      }
+      el.after(copy);
+      // Floating things would land exactly on top of the original — offset them.
+      const floating = isSvgChild(el) || ['absolute', 'fixed'].includes(computed(el, 'position'));
+      if (floating) createMover(copy)?.move(16, 16);
+      copies.push(copy);
     }
-    el.after(copy);
-    // Floating things would land exactly on top of the original — offset them.
-    const floating = isSvgChild(el) || ['absolute', 'fixed'].includes(computed(el, 'position'));
-    if (floating) createMover(copy)?.move(16, 16);
   });
-  if (copy) editor.select(copy);
+  editor.setSelection(copies);
 }
 
-export function toggleHidden(editor: Editor, el: Element | null = editor.selected): void {
-  if (!el || isStructural(el)) return;
-  const hidden = inlineStyle(el, 'display') === 'none';
-  editor.edit(hidden ? 'Show' : 'Hide', () => setStyle(el, 'display', hidden ? '' : 'none'));
+/** Hide the given element, or the selection; if any of them is hidden, show them all instead. */
+export function toggleHidden(editor: Editor, el?: Element): void {
+  const els = (el ? [el] : editor.selectionRoots).filter((e) => !isStructural(e));
+  if (!els.length) return;
+  const show = els.some((e) => inlineStyle(e, 'display') === 'none');
+  editor.edit(show ? 'Show' : 'Hide', () => els.forEach((e) => setStyle(e, 'display', show ? '' : 'none')));
 }
 
 export function nudgeSelected(editor: Editor, dx: number, dy: number): void {
-  const el = editor.selected;
-  if (!el) return;
-  const mover = createMover(el);
-  if (!mover) return;
-  editor.edit('Nudge', () => mover.move(dx, dy), `nudge:${elementKey(el)}`);
+  const movers = editor.selectionRoots.filter((e) => !isStructural(e)).map(createMover);
+  if (!movers.length || movers.some((m) => !m)) return;
+  const key = editor.selection.map(elementKey).join('+');
+  editor.edit('Nudge', () => movers.forEach((m) => m!.move(dx, dy)), `nudge:${key}`);
 }
 
 export function selectParent(editor: Editor): void {
   const p = editor.selected?.parentElement;
   if (p && p.localName !== 'html') editor.select(p);
+}
+
+/** Ctrl+A: everything next to the main selected element (its siblings). */
+export function selectSiblings(editor: Editor): void {
+  const el = editor.selected;
+  const parent = el?.parentElement;
+  if (!el || !parent || isStructural(el)) return;
+  const skip = ['script', 'style', 'template', 'noscript', 'link', 'meta', 'defs'];
+  const sibs = Array.from(parent.children).filter((c) => !skip.includes(c.localName) && c !== el);
+  editor.setSelection([...sibs, el]);
 }
 
 export function selectFirstChild(editor: Editor): void {

@@ -24,7 +24,7 @@ The stack is TypeScript, Vite and `vite-plugin-singlefile`, with no UI framework
 ```
 tweakerr.html          layout: toolbar · layers · canvas · properties · status bar
 src/main.ts            wiring: toolbar, keyboard, open/save, drag-and-drop
-src/editor.ts          shared state + events (load, selection, change, layout…)
+src/editor.ts          shared state + events (load, selection, change, layout…); the selection is a list
 src/canvas/
   stage.ts             the user's page in a sandboxed iframe; zoom; coordinates
   overlay.ts           glass layer on top: hover/selection boxes, handles, guides
@@ -36,7 +36,8 @@ src/doc/
   serialize.ts         document -> HTML file
   style.ts             read computed styles, write inline styles
   markers.ts           SVG arrowheads (copy-on-write for shared markers)
-  actions.ts           delete, duplicate, hide, nudge, select parent/child
+  actions.ts           delete, duplicate, hide, nudge, select parent/child/siblings
+  similar.ts           "select all like this": same type, same colour
   kinds.ts, palette.ts helpers: what kind of element, page colours/fonts
 src/panel/             properties panel (controls + per-element sections), layers
 src/io/files.ts        File System Access API with input/download fallbacks
@@ -50,7 +51,8 @@ The page being edited is loaded into an `<iframe sandbox="allow-same-origin">` v
 2. **Every change goes through `editor.edit(label, fn, mergeKey?)`** (or `history.begin/end` for gestures). That is what makes it undoable. A change made outside a transaction won't be undone, and may silently end up in the saved file.
 3. **Temporary attributes stay outside transactions.** Example: the `contenteditable` that text editing needs is added before `begin()` and removed after `end()`.
 4. **Watch for cross-frame objects.** Page nodes come from the iframe's window, so `el instanceof HTMLElement` is false for them. Check `namespaceURI` or `localName` instead.
-5. **Offline only.** No CDN, fonts or network calls in the editor. The build must work opened from disk.
+5. **Think in selections.** `editor.selection` is a list, and `editor.selected` is the main (last picked) element. The panel reads values from the main one and writes to all of them. Commands that move or delete use `editor.selectionRoots`, so a card and its heading selected together are only moved once.
+6. **Offline only.** No CDN, fonts or network calls in the editor. The build must work opened from disk.
 
 ## Tests
 
