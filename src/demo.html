@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launch plan — Tweakerr demo</title>
+<style>
+  :root { --ink: #1d2433; --muted: #5b6475; --brand: #2f6fed; --soft: #eef3ff; --ok: #1f9d6b; --warn: #e58a00; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: #fafbfd; }
+  header { padding: 48px 56px 28px; background: linear-gradient(135deg, #1d2a5b, #2f6fed); color: #fff; }
+  header h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: -0.02em; }
+  header p { margin: 0; opacity: 0.85; font-size: 16px; }
+  main { padding: 32px 56px 56px; }
+  h2 { font-size: 20px; margin: 0 0 16px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
+  .card { background: #fff; border: 1px solid #dde3ee; border-radius: 12px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(20, 30, 60, 0.06); }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .card .tag { display: inline-block; margin-bottom: 10px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--soft); color: var(--brand); }
+  .card.done .tag { background: #e3f6ee; color: var(--ok); }
+  .card.risk { border-color: #f3c47a; }
+  .card.risk .tag { background: #fff2dc; color: var(--warn); }
+  .flow { background: #fff; border: 1px solid #dde3ee; border-radius: 12px; padding: 16px; margin-bottom: 32px; }
+  .flow svg { display: block; width: 100%; height: auto; }
+  .callout { display: flex; gap: 14px; align-items: flex-start; padding: 16px 20px; border-left: 4px solid var(--brand); background: var(--soft); border-radius: 8px; max-width: 640px; }
+  .callout strong { display: block; margin-bottom: 2px; }
+  footer { padding: 18px 56px; color: var(--muted); font-size: 13px; border-top: 1px solid #e6e9f0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Q4 launch plan</h1>
+  <p>Double-click any text to edit it. Click a box, then drag it, resize it, or recolour it in the panel.</p>
+</header>
+<main>
+  <h2>Workstreams</h2>
+  <section class="cards">
+    <article class="card done">
+      <span class="tag">Done</span>
+      <h3>Research</h3>
+      <p>Interviews with twelve teams. Findings are in the shared folder.</p>
+    </article>
+    <article class="card">
+      <span class="tag">In progress</span>
+      <h3>Build</h3>
+      <p>Core editor and file saving. Demo ready by the end of the month.</p>
+    </article>
+    <article class="card risk">
+      <span class="tag">At risk</span>
+      <h3>Rollout</h3>
+      <p>Waiting on a decision about where to host the release notes.</p>
+    </article>
+  </section>
+
+  <h2>How it flows</h2>
+  <div class="flow">
+    <svg viewBox="0 0 860 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow from idea to launch">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6475"/>
+        </marker>
+      </defs>
+      <rect x="20" y="50" width="160" height="70" rx="10" fill="#eef3ff" stroke="#2f6fed" stroke-width="2"/>
+      <text x="100" y="91" text-anchor="middle" font-size="16" fill="#1d2433">Idea</text>
+      <rect x="240" y="50" width="160" height="70" rx="10" fill="#eef3ff" stroke="#2f6fed" stroke-width="2"/>
+      <text x="320" y="91" text-anchor="middle" font-size="16" fill="#1d2433">Design</text>
+      <rect x="460" y="50" width="160" height="70" rx="10" fill="#eef3ff" stroke="#2f6fed" stroke-width="2"/>
+      <text x="540" y="91" text-anchor="middle" font-size="16" fill="#1d2433">Build</text>
+      <circle cx="770" cy="85" r="45" fill="#e3f6ee" stroke="#1f9d6b" stroke-width="2"/>
+      <text x="770" y="91" text-anchor="middle" font-size="16" fill="#1d2433">Launch</text>
+      <line x1="182" y1="85" x2="236" y2="85" stroke="#5b6475" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="402" y1="85" x2="456" y2="85" stroke="#5b6475" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="622" y1="85" x2="721" y2="85" stroke="#5b6475" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+    </svg>
+  </div>
+
+  <div class="callout">
+    <div>
+      <strong>Tip</strong>
+      Each arrow can have its own arrowhead colour — Tweakerr copies the shared arrowhead only when you change one.
+    </div>
+  </div>
+</main>
+<footer>Updated <span id="stamp">just now</span> · This page has a script, but Tweakerr never runs it and saves it back unchanged.</footer>
+<script>
+  document.getElementById('stamp').textContent = new Date().toLocaleString();
+</script>
+</body>
+</html>

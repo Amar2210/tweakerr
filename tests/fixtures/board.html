@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Order flow board</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; background: #f6f7fb; color: #222; }
+  .wrap { position: relative; padding: 40px; }
+  h1 { margin: 0 0 24px; font-size: 28px; }
+  .row { display: flex; gap: 24px; margin-bottom: 32px; }
+  .box { width: 220px; padding: 16px; background: #ffffff; border: 2px solid #4a67d6; border-radius: 10px; }
+  .box h2 { margin: 0 0 6px; font-size: 18px; }
+  .box p { margin: 0; font-size: 14px; color: #555; }
+  .pill { display: inline-block; padding: 4px 10px; border: 1px solid #999 !important; border-radius: 999px; font-size: 12px; }
+  .badge { position: absolute; top: 40px; right: 40px; padding: 6px 12px; background: #ffe7a3; border-radius: 6px; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title">Order to cash</h1>
+  <div class="badge" id="badge">Draft v2</div>
+  <div class="row">
+    <div class="box" id="box-a"><h2>Quote</h2><p>Sales prepares the quote.</p><span class="pill" id="pill">Owner: Sales</span></div>
+    <div class="box" id="box-b"><h2>Order</h2><p>Customer signs the order.</p></div>
+    <div class="box" id="box-c"><h2>Invoice</h2><p>Finance sends the invoice.</p></div>
+  </div>
+  <svg id="diagram" width="760" height="140" viewBox="0 0 760 140" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+      </marker>
+      <marker id="solo-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/>
+      </marker>
+    </defs>
+    <rect id="node-1" x="10" y="40" width="140" height="60" rx="8" fill="#e8edff" stroke="#4a67d6" stroke-width="2"/>
+    <rect id="node-2" x="300" y="40" width="140" height="60" rx="8" fill="#e8edff" stroke="#4a67d6" stroke-width="2"/>
+    <circle id="node-3" cx="660" cy="70" r="40" fill="#e6f7ee" stroke="#27ae60" stroke-width="2"/>
+    <line id="arrow-1" x1="152" y1="70" x2="296" y2="70" stroke="#333" stroke-width="2" marker-end="url(#head)"/>
+    <line id="arrow-2" x1="442" y1="70" x2="616" y2="70" stroke="#333" stroke-width="2" marker-end="url(#head)"/>
+    <path id="arrow-3" d="M80,100 C80,135 660,135 660,112" fill="none" stroke="#c0392b" stroke-width="2" marker-end="url(#solo-head)"/>
+  </svg>
+</div>
+<script>
+  document.body.setAttribute('data-ran', 'yes');
+  document.getElementById('title').textContent = 'Script ran!';
+</script>
+</body>
+</html>

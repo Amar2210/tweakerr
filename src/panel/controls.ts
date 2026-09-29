@@ -1,0 +1,458 @@
+import { formatColor, resolveColor, toHex } from '../util/color';
+import { h } from '../util/dom';
+
+/**
+ * Reusable property controls. Each reads its value through `get()` and
+ * writes through `set()`; `refresh()` re-reads unless the user is busy
+ * with it (focused or scrubbing), so live updates never fight typing.
+ */
+export interface Control {
+  el: HTMLElement;
+  refresh(): void;
+}
+
+export interface Binding<T> {
+  get(): T;
+  /** `final` is false while scrubbing/sliding, true on commit. */
+  set(value: T, final: boolean): void;
+}
+
+function row(label: string | HTMLElement, ...body: HTMLElement[]): HTMLElement {
+  const l = typeof label === 'string' ? h('label', { class: 'ctl-label', text: label }) : label;
+  return h('div', { class: 'ctl-row' }, l, h('div', { class: 'ctl-body' }, ...body));
+}
+
+function busy(el: HTMLElement): boolean {
+  return el.contains(document.activeElement) || el.dataset.scrubbing === '1';
+}
+
+// ---------------------------------------------------------------- number
+
+export interface NumberOpts {
+  /** Unit appended to bare numbers ('px' by default, '' for unitless). */
+  unit?: string;
+  step?: number;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  /** Short label shown inside the field instead of a row label (e.g. "W"). */
+  inline?: boolean;
+}
+
+/**
+ * A number field with a scrubbable label: drag the label left/right to
+ * change the value, or use ↑/↓ (Shift = ×10). Accepts any CSS value
+ * ("auto", "2em", "50%") — bare numbers get the default unit.
+ */
+export function numberControl(label: string, bind: Binding<string>, opts: NumberOpts = {}): Control {
+  const unit = opts.unit ?? 'px';
+  const step = opts.step ?? 1;
+  const input = h('input', { class: 'ctl-input ctl-number', attrs: { type: 'text', spellcheck: 'false', placeholder: opts.placeholder ?? '' } });
+  const lab = h('label', { class: `ctl-label scrub${opts.inline ? ' ctl-inline-label' : ''}`, text: label, title: 'Drag to adjust' });
+
+  const display = (v: string) => {
+    if (!v) return '';
+    const m = /^(-?[\d.]+)px$/.exec(v);
+    if (m && unit === 'px') return String(round(parseFloat(m[1])));
+    if (/^-?[\d.]+$/.test(v)) return String(round(parseFloat(v)));
+    return v;
+  };
+  const normalize = (raw: string): string => {
+    const t = raw.trim();
+    if (t === '') return '';
+    if (/^-?\d*\.?\d+$/.test(t)) return clampNum(parseFloat(t)) + unit;
+    return t;
+  };
+  const clampNum = (n: number) => {
+    if (opts.min !== undefined) n = Math.max(opts.min, n);
+    if (opts.max !== undefined) n = Math.min(opts.max, n);
+    return round(n);
+  };
+  const current = () => parseFloat(input.value) || 0;
+
+  const commit = () => bind.set(normalize(input.value), true);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      commit();
+      input.select();
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const d = (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1);
+      input.value = String(clampNum(current() + d));
+      bind.set(normalize(input.value), false);
+    } else if (e.key === 'Escape') {
+      input.value = display(bind.get());
+      input.blur();
+    }
+  });
+  input.addEventListener('change', commit);
+  input.addEventListener('focus', () => input.select());
+
+  // Scrub on the label.
+  lab.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    lab.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const start = current();
+    wrap.dataset.scrubbing = '1';
+    const onMove = (ev: PointerEvent) => {
+      const d = Math.round((ev.clientX - startX) / 2) * step * (ev.shiftKey ? 10 : 1);
+      input.value = String(clampNum(start + d));
+      bind.set(normalize(input.value), false);
+    };
+    const onUp = () => {
+      lab.removeEventListener('pointermove', onMove);
+      lab.removeEventListener('pointerup', onUp);
+      delete wrap.dataset.scrubbing;
+      bind.set(normalize(input.value), true);
+    };
+    lab.addEventListener('pointermove', onMove);
+    lab.addEventListener('pointerup', onUp);
+  });
+
+  const wrap = opts.inline ? h('div', { class: 'ctl-inline' }, lab, input) : row(lab, input);
+  const refresh = () => {
+    if (!busy(wrap)) input.value = display(bind.get());
+  };
+  refresh();
+  return { el: wrap, refresh };
+}
+
+// ---------------------------------------------------------------- colour
+
+export interface ColorOpts {
+  /** Offer a "none" choice (SVG fill/stroke) or "transparent" (backgrounds). */
+  none?: 'none' | 'transparent';
+  palette?: () => string[];
+}
+
+/** Swatch + text field; the swatch opens a picker with the page's own colours. */
+export function colorControl(label: string, bind: Binding<string>, opts: ColorOpts = {}): Control {
+  const chip = h('span', { class: 'swatch-chip' });
+  const swatch = h('button', { class: 'swatch', attrs: { type: 'button', 'aria-label': `${label} colour` } }, chip);
+  const input = h('input', { class: 'ctl-input ctl-color-text', attrs: { type: 'text', spellcheck: 'false' } });
+  const wrap = row(label, h('div', { class: 'ctl-color' }, swatch, input));
+
+  const show = (v: string) => {
+    const c = v && v !== 'none' ? resolveColor(v) : null;
+    chip.style.background = c ? formatColor(c) : '';
+    chip.classList.toggle('is-none', !c || c.a === 0);
+    if (document.activeElement !== input) input.value = displayColor(v);
+  };
+  const commitText = () => {
+    const v = input.value.trim();
+    if (v === '' || v === 'none' || CSS.supports('color', v)) bind.set(v, true);
+    else input.value = displayColor(bind.get());
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') commitText();
+    if (e.key === 'Escape') {
+      input.value = displayColor(bind.get());
+      input.blur();
+    }
+  });
+  input.addEventListener('change', commitText);
+  swatch.addEventListener('click', () =>
+    openColorPopover(swatch, bind.get(), opts, (v, final) => {
+      bind.set(v, final);
+      show(v);
+    }),
+  );
+
+  // Always repaint the swatch; show() itself leaves the text alone while it's being typed in.
+  const refresh = () => show(bind.get());
+  refresh();
+  return { el: wrap, refresh };
+}
+
+function displayColor(v: string): string {
+  if (!v || v === 'none') return v;
+  const c = resolveColor(v);
+  return c ? formatColor(c) : v;
+}
+
+let popover: HTMLElement | null = null;
+
+function closePopover(): void {
+  popover?.remove();
+  popover = null;
+}
+
+function openColorPopover(
+  anchor: HTMLElement,
+  value: string,
+  opts: ColorOpts,
+  onPick: (v: string, final: boolean) => void,
+): void {
+  closePopover();
+  const start = (value && value !== 'none' && resolveColor(value)) || { r: 0, g: 0, b: 0, a: 1 };
+  let rgba = { ...start };
+  const picker = h('input', { class: 'pop-picker', attrs: { type: 'color', value: toHex(rgba) } });
+  const alpha = h('input', { class: 'pop-alpha', attrs: { type: 'range', min: '0', max: '100', value: String(Math.round(rgba.a * 100)) } });
+  const alphaOut = h('span', { class: 'pop-alpha-out', text: `${Math.round(rgba.a * 100)}%` });
+
+  const emit = (final: boolean) => onPick(formatColor(rgba), final);
+  picker.addEventListener('input', () => {
+    const c = resolveColor(picker.value)!;
+    rgba = { ...c, a: rgba.a || 1 };
+    alpha.value = String(Math.round(rgba.a * 100));
+    alphaOut.textContent = `${alpha.value}%`;
+    emit(false);
+  });
+  picker.addEventListener('change', () => emit(true));
+  alpha.addEventListener('input', () => {
+    rgba.a = +alpha.value / 100;
+    alphaOut.textContent = `${alpha.value}%`;
+    emit(false);
+  });
+  alpha.addEventListener('change', () => emit(true));
+
+  const swatches = (opts.palette?.() ?? []).map((c) =>
+    h('button', {
+      class: 'pop-swatch',
+      title: c,
+      attrs: { type: 'button', style: `background:${c}` },
+      on: {
+        click: () => {
+          rgba = resolveColor(c) ?? rgba;
+          picker.value = toHex(rgba);
+          alpha.value = String(Math.round(rgba.a * 100));
+          alphaOut.textContent = `${alpha.value}%`;
+          emit(true);
+        },
+      },
+    }),
+  );
+
+  const noneBtn = opts.none
+    ? h('button', {
+        class: 'pop-none',
+        text: opts.none === 'none' ? 'None' : 'Transparent',
+        attrs: { type: 'button' },
+        on: {
+          click: () => {
+            onPick(opts.none!, true);
+            closePopover();
+          },
+        },
+      })
+    : null;
+
+  popover = h(
+    'div',
+    { class: 'popover', attrs: { role: 'dialog', 'aria-label': 'Colour picker' } },
+    h('div', { class: 'pop-row' }, picker, noneBtn),
+    h('div', { class: 'pop-row' }, h('span', { class: 'pop-caption', text: 'Opacity' }), alpha, alphaOut),
+    swatches.length ? h('div', { class: 'pop-caption', text: 'Colours in this page' }) : null,
+    swatches.length ? h('div', { class: 'pop-swatches' }, ...swatches) : null,
+  );
+  document.body.append(popover);
+  const r = anchor.getBoundingClientRect();
+  const pw = 244;
+  popover.style.left = `${Math.max(8, Math.min(window.innerWidth - pw - 8, r.right - pw))}px`;
+  const below = r.bottom + 6;
+  popover.style.top = `${below + 260 > window.innerHeight ? Math.max(8, r.top - 266) : below}px`;
+
+  const away = (e: PointerEvent) => {
+    if (popover && !popover.contains(e.target as Node) && !anchor.contains(e.target as Node)) {
+      closePopover();
+      document.removeEventListener('pointerdown', away, true);
+    }
+  };
+  setTimeout(() => document.addEventListener('pointerdown', away, true));
+  popover.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closePopover();
+  });
+}
+
+// ---------------------------------------------------------------- select
+
+export function selectControl(
+  label: string,
+  options: { value: string; label: string }[],
+  bind: Binding<string>,
+): Control {
+  const sel = h('select', { class: 'ctl-input ctl-select' });
+  const custom = h('option', { text: 'Custom', attrs: { value: '__custom', disabled: '' } });
+  for (const o of options) sel.append(h('option', { text: o.label, attrs: { value: o.value } }));
+  sel.append(custom);
+  sel.addEventListener('change', () => bind.set(sel.value, true));
+  const wrap = row(label, sel);
+  const refresh = () => {
+    if (busy(wrap)) return;
+    const v = bind.get();
+    sel.value = options.some((o) => o.value === v) ? v : '__custom';
+  };
+  refresh();
+  return { el: wrap, refresh };
+}
+
+// ---------------------------------------------------------------- slider
+
+export function sliderControl(
+  label: string,
+  range: { min: number; max: number; step?: number; suffix?: string },
+  bind: Binding<number>,
+): Control {
+  const slider = h('input', {
+    class: 'ctl-slider',
+    attrs: { type: 'range', min: String(range.min), max: String(range.max), step: String(range.step ?? 1) },
+  });
+  const out = h('input', { class: 'ctl-input ctl-slider-out', attrs: { type: 'text' } });
+  const suffix = range.suffix ?? '';
+  const clamp = (n: number) => Math.min(range.max, Math.max(range.min, n));
+  slider.addEventListener('input', () => {
+    out.value = slider.value + suffix;
+    bind.set(+slider.value, false);
+  });
+  slider.addEventListener('change', () => bind.set(+slider.value, true));
+  out.addEventListener('change', () => {
+    const n = clamp(parseFloat(out.value));
+    if (!Number.isNaN(n)) bind.set(n, true);
+    refreshNow();
+  });
+  out.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') out.dispatchEvent(new Event('change'));
+  });
+  const wrap = row(label, h('div', { class: 'ctl-slider-wrap' }, slider, out));
+  const refreshNow = () => {
+    const v = Math.round(bind.get());
+    slider.value = String(v);
+    out.value = v + suffix;
+  };
+  const refresh = () => {
+    if (!busy(wrap)) refreshNow();
+  };
+  refresh();
+  return { el: wrap, refresh };
+}
+
+// ---------------------------------------------------------------- segmented
+
+export function segmentedControl(
+  label: string,
+  options: { value: string; label: string; title?: string }[],
+  bind: Binding<string>,
+): Control {
+  const btns = options.map((o) =>
+    h('button', {
+      class: 'seg-btn',
+      text: o.label,
+      title: o.title ?? o.label,
+      attrs: { type: 'button', 'data-value': o.value },
+      on: { click: () => bind.set(o.value, true) },
+    }),
+  );
+  const wrap = row(label, h('div', { class: 'seg' }, ...btns));
+  const refresh = () => {
+    const v = bind.get();
+    for (const b of btns) b.classList.toggle('on', b.dataset.value === v);
+  };
+  refresh();
+  return { el: wrap, refresh };
+}
+
+/** A row of on/off toggles (bold/italic/underline style). */
+export function togglesControl(
+  label: string,
+  toggles: { label: string; title: string; bind: Binding<boolean>; className?: string }[],
+): Control {
+  const btns = toggles.map((t) => {
+    const b = h('button', {
+      class: `seg-btn ${t.className ?? ''}`,
+      text: t.label,
+      title: t.title,
+      attrs: { type: 'button', 'aria-pressed': 'false' },
+    });
+    b.addEventListener('click', () => t.bind.set(!t.bind.get(), true));
+    return b;
+  });
+  const wrap = row(label, h('div', { class: 'seg' }, ...btns));
+  const refresh = () =>
+    toggles.forEach((t, i) => {
+      const on = t.bind.get();
+      btns[i].classList.toggle('on', on);
+      btns[i].setAttribute('aria-pressed', String(on));
+    });
+  refresh();
+  return { el: wrap, refresh };
+}
+
+// ---------------------------------------------------------------- text
+
+export function textControl(
+  label: string,
+  bind: Binding<string>,
+  opts: { multiline?: boolean; placeholder?: string; list?: string[]; mono?: boolean } = {},
+): Control {
+  const input = opts.multiline
+    ? h('textarea', { class: `ctl-input ctl-textarea${opts.mono ? ' mono' : ''}`, attrs: { spellcheck: 'false', rows: '4', placeholder: opts.placeholder ?? '' } })
+    : h('input', { class: `ctl-input${opts.mono ? ' mono' : ''}`, attrs: { type: 'text', spellcheck: 'false', placeholder: opts.placeholder ?? '' } });
+  let listEl: HTMLDataListElement | null = null;
+  if (opts.list?.length && input instanceof HTMLInputElement) {
+    const id = `dl-${Math.random().toString(36).slice(2, 8)}`;
+    listEl = h('datalist', { attrs: { id } }, ...opts.list.map((v) => h('option', { attrs: { value: v } })));
+    input.setAttribute('list', id);
+  }
+  const commit = () => bind.set(input.value, true);
+  input.addEventListener('change', commit);
+  input.addEventListener('keydown', (e) => {
+    const ke = e as KeyboardEvent;
+    if (ke.key === 'Enter' && (!opts.multiline || ke.ctrlKey || ke.metaKey)) {
+      ke.preventDefault();
+      commit();
+    }
+    if (ke.key === 'Escape') {
+      input.value = bind.get();
+      input.blur();
+    }
+  });
+  const wrap = opts.multiline ? h('div', { class: 'ctl-block' }, h('label', { class: 'ctl-label', text: label }), input) : row(label, input);
+  if (listEl) wrap.append(listEl);
+  const refresh = () => {
+    if (!busy(wrap)) input.value = bind.get();
+  };
+  refresh();
+  return { el: wrap, refresh };
+}
+
+/** Several compact controls side by side (e.g. W/H or the four paddings). */
+export function gridControl(label: string, controls: Control[], cols = controls.length): Control {
+  const grid = h('div', { class: 'ctl-grid' }, ...controls.map((c) => c.el));
+  grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+  const wrap = label ? row(label, grid) : h('div', { class: 'ctl-row ctl-row-full' }, grid);
+  return { el: wrap, refresh: () => controls.forEach((c) => c.refresh()) };
+}
+
+export function noteControl(text: string, action?: { label: string; run: () => void }): Control {
+  const el = h(
+    'div',
+    { class: 'ctl-note' },
+    h('span', { text }),
+    action ? h('button', { class: 'link-btn', text: action.label, attrs: { type: 'button' }, on: { click: action.run } }) : null,
+  );
+  return { el, refresh() {} };
+}
+
+export function buttonsControl(buttons: { label: string; title?: string; run: () => void; danger?: boolean; disabled?: boolean }[]): Control {
+  const el = h(
+    'div',
+    { class: 'ctl-buttons' },
+    ...buttons.map((b) => {
+      const btn = h('button', {
+        class: `btn btn-small${b.danger ? ' btn-danger' : ''}`,
+        text: b.label,
+        title: b.title ?? b.label,
+        attrs: { type: 'button' },
+        on: { click: b.run },
+      });
+      btn.disabled = !!b.disabled;
+      return btn;
+    }),
+  );
+  return { el, refresh() {} };
+}
+
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
+}
