@@ -2,13 +2,17 @@ import type { Editor } from '../editor';
 import { elementKey } from '../doc/actions';
 import { canHaveMarkers, isStructural, isSvgChild, isSvgRoot } from '../doc/kinds';
 import { ensureGroupMarker, followsLine, markerColor, markerOf, type MarkerEnd, setMarkerColor } from '../doc/markers';
+import { COMMON_FONTS, GENERIC_FONTS, pageFamilies, primaryFamily, stackFor } from '../doc/fonts';
 import { collectFonts, collectPalette } from '../doc/palette';
 import { computed, setAttr, setStyle } from '../doc/style';
+import { formatColor, resolveColor } from '../util/color';
 import { addSvgTranslate, formatCssTranslate, parseCssTranslate, r2, readSvgTranslate } from '../util/geometry';
+import { type Gradient, formatGradient, gradientLayer, headToAngle, isStop } from '../util/gradient';
 import {
   type Binding,
   type Control,
   colorControl,
+  fontControl,
   gridControl,
   noteControl,
   numberControl,
@@ -78,7 +82,7 @@ export function buildSections(editor: Editor, els: Element[]): Section[] {
   const sections: Section[] = [];
   const hasText = !isSvgRoot(el) && !['img', 'hr', 'video', 'canvas', 'iframe'].includes(el.localName);
   if (hasText) sections.push(textSection(editor, el, els, css, palette));
-  sections.push(fillSection(el, css, palette));
+  sections.push(fillSection(editor, el, els, css, palette));
   sections.push(layoutSection(editor, el, els, css));
   sections.push(spacingSection(css));
   sections.push(effectsSection(css));
@@ -112,7 +116,6 @@ type Attr = (name: string) => Binding<string>;
 type Palette = () => string[];
 
 function textSection(editor: Editor, el: Element, els: Element[], css: Css, palette: Palette): Section {
-  const fonts = editor.doc ? collectFonts(editor.doc) : [];
   const align = css('text-align', {
     read: () => {
       const v = computed(el, 'text-align');
@@ -126,7 +129,7 @@ function textSection(editor: Editor, el: Element, els: Element[], css: Css, pale
   return {
     title: 'Text',
     controls: [
-      textControl('Font', css('font-family'), { list: fonts }),
+      fontField(editor, css),
       gridControl('', [
         numberControl('Size', css('font-size'), { inline: true, min: 1 }),
         numberControl('Line', css('line-height'), { inline: true, unit: '', step: 0.1, min: 0 }),
@@ -150,16 +153,133 @@ function textSection(editor: Editor, el: Element, els: Element[], css: Css, pale
   };
 }
 
-function fillSection(el: Element, css: Css, palette: Palette): Section {
-  const controls: Control[] = [colorControl('Fill', css('background-color'), { none: 'transparent', palette })];
-  if (computed(el, 'background-image') !== 'none') {
+/**
+ * One font name to pick; the page's own fonts first, then fonts most
+ * machines have, then CSS's basic kinds. A fallback list is added on write.
+ */
+function fontField(editor: Editor, css: Css): Control {
+  const page = pageFamilies(editor.doc ? collectFonts(editor.doc) : []);
+  const inPage = (name: string) => page.names.some((n) => n.toLowerCase() === name.toLowerCase());
+  return fontControl('Font', css('font-family'), {
+    display: primaryFamily,
+    toValue: (name) => stackFor(name, page.known),
+    groups: () =>
+      [
+        { title: 'In this page', fonts: page.names },
+        { title: 'Common fonts', fonts: COMMON_FONTS.map((f) => f.name).filter((n) => !inPage(n)) },
+        { title: 'Basic', fonts: GENERIC_FONTS },
+      ].filter((g) => g.fonts.length),
+  });
+}
+
+/** A gentle top-to-bottom gradient from an element's own fill colour. */
+function startingGradient(el: Element): string {
+  const base = resolveColor(computed(el, 'background-color'));
+  const from = base && base.a > 0 ? base : { r: 109, g: 74, b: 255, a: 1 };
+  const to = { r: Math.round(from.r * 0.7), g: Math.round(from.g * 0.7), b: Math.round(from.b * 0.7), a: from.a };
+  return `linear-gradient(180deg, ${formatColor(from)}, ${formatColor(to)})`;
+}
+
+/**
+ * Gradient editor: type, angle and one colour per stop. A gradient is drawn
+ * over the fill colour, so without this, changing Fill would seem to do nothing.
+ */
+function gradientControls(editor: Editor, el: Element, els: Element[], css: Css, palette: Palette): Control[] {
+  const bg = computed(el, 'background-image');
+  const found = gradientLayer(bg);
+  const image = css('background-image', { write: (e) => setStyle(e, 'background-image', startingGradient(e)) });
+  if (!found) {
+    if (bg !== 'none') {
+      return [noteControl('An image is drawn over the fill colour.', { label: 'Remove it', run: () => css('background-image').set('none', true) })];
+    }
+    return [buttonsControl([{ label: 'Make it a gradient', title: 'Blend from this fill colour to a darker shade', run: () => image.set('', true) }])];
+  }
+
+  const key = els.map(elementKey).join('+');
+  const live = (): Gradient => gradientLayer(computed(el, 'background-image'))?.gradient ?? found.gradient;
+  /** Change each selected element's own gradient (they may differ), keeping its other layers. */
+  const update = (label: string, fn: (g: Gradient) => void, merge?: string) =>
+    editor.edit(label, () => {
+      for (const e of els) {
+        const f = gradientLayer(computed(e, 'background-image'));
+        if (!f) continue;
+        fn(f.gradient);
+        f.layers[f.index] = formatGradient(f.gradient);
+        setStyle(e, 'background-image', f.layers.join(', '));
+      }
+    }, merge);
+
+  const controls: Control[] = [
+    noteControl('A gradient is drawn over the fill colour. Change its colours here.'),
+    selectControl('Gradient', [
+      { value: 'linear', label: 'Linear' },
+      { value: 'radial', label: 'Radial' },
+      { value: 'conic', label: 'Conic' },
+    ], {
+      get: () => live().kind,
+      set: (v) =>
+        update('Gradient type', (g) => {
+          if (g.kind === v) return;
+          g.kind = v as Gradient['kind'];
+          g.head = ''; // a linear angle means nothing to a radial gradient
+        }),
+    }),
+  ];
+  if (found.gradient.kind === 'linear') {
     controls.push(
-      noteControl('Has a gradient or image on top of the fill.', {
-        label: 'Remove it',
-        run: () => css('background-image').set('none', true),
-      }),
+      numberControl('Angle', {
+        get: () => {
+          const a = headToAngle(live().head);
+          return a === null ? '' : String(a);
+        },
+        set: (v) => update('Gradient angle', (g) => void (g.head = `${parseFloat(v) || 0}deg`), `${key}:gradient-angle`),
+      }, { unit: '', step: 5 }),
     );
   }
+  found.gradient.items.filter(isStop).forEach((_, i) => {
+    controls.push(
+      colorControl(`Colour ${i + 1}`, {
+        get: () => live().items.filter(isStop)[i]?.color ?? '',
+        set: (v) =>
+          update('Gradient colour', (g) => {
+            const stop = g.items.filter(isStop)[i];
+            if (stop) stop.color = v || 'transparent';
+          }, `${key}:gradient-stop-${i}`),
+      }, { none: 'transparent', palette }),
+    );
+  });
+  const stopCount = found.gradient.items.filter(isStop).length;
+  controls.push(
+    buttonsControl([
+      {
+        label: 'Add colour',
+        run: () =>
+          update('Add gradient colour', (g) => {
+            const last = g.items.filter(isStop).at(-1)!;
+            g.items.push({ color: last.color, pos: '' });
+          }),
+      },
+      {
+        label: 'Remove last',
+        title: 'Remove the last colour',
+        disabled: stopCount <= 2,
+        run: () =>
+          update('Remove gradient colour', (g) => {
+            if (g.items.filter(isStop).length <= 2) return;
+            while (g.items.length && !isStop(g.items[g.items.length - 1])) g.items.pop();
+            g.items.pop();
+            while (g.items.length && !isStop(g.items[g.items.length - 1])) g.items.pop();
+          }),
+      },
+      { label: 'Remove gradient', danger: true, run: () => css('background-image').set('none', true) },
+    ]),
+  );
+  return controls;
+}
+
+function fillSection(editor: Editor, el: Element, els: Element[], css: Css, palette: Palette): Section {
+  const controls: Control[] = [colorControl('Fill', css('background-color'), { none: 'transparent', palette })];
+  controls.push(...gradientControls(editor, el, els, css, palette));
   const borderWidth = css('border-width', {
     read: () => computed(el, 'border-top-width'),
     write: (e, v) => {
@@ -321,14 +441,13 @@ function customSection(editor: Editor, el: Element): Section {
 }
 
 function pageSections(editor: Editor, el: Element, css: Css, palette: Palette): Section[] {
-  const fonts = editor.doc ? collectFonts(editor.doc) : [];
   return [
     {
       title: 'Page',
       controls: [
         colorControl('Background', css('background-color'), { none: 'transparent', palette }),
         colorControl('Text', css('color'), { palette }),
-        textControl('Font', css('font-family'), { list: fonts }),
+        fontField(editor, css),
         numberControl('Font size', css('font-size'), { min: 1 }),
       ],
     },
@@ -442,7 +561,7 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
       text.push(noteControl('Has styled parts — select a part to edit its words.'));
     }
     text.push(
-      textControl('Font', css('font-family'), { list: editor.doc ? collectFonts(editor.doc) : [] }),
+      fontField(editor, css),
       numberControl('Size', css('font-size'), { min: 1 }),
       selectControl('Weight', WEIGHTS, css('font-weight')),
       selectControl('Anchor', [

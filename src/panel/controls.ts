@@ -1,4 +1,5 @@
 import { formatColor, resolveColor, toHex } from '../util/color';
+import { quoteFamily } from '../doc/fonts';
 import { h } from '../util/dom';
 
 /**
@@ -172,10 +173,35 @@ function displayColor(v: string): string {
 }
 
 let popover: HTMLElement | null = null;
+let popoverCleanup: (() => void) | null = null;
 
 function closePopover(): void {
   popover?.remove();
   popover = null;
+  popoverCleanup?.();
+  popoverCleanup = null;
+}
+
+/** Show `el` as a floating panel under (or above) `anchor`; closes on outside click or Escape. */
+function showPopover(anchor: HTMLElement, el: HTMLElement, width: number, height: number): void {
+  closePopover();
+  popover = el;
+  el.style.width = `${width}px`;
+  document.body.append(el);
+  const r = anchor.getBoundingClientRect();
+  el.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, r.right - width))}px`;
+  const below = r.bottom + 6;
+  el.style.top = `${below + height > window.innerHeight ? Math.max(8, r.top - height - 6) : below}px`;
+
+  const away = (e: PointerEvent) => {
+    if (!el.contains(e.target as Node) && !anchor.contains(e.target as Node)) closePopover();
+  };
+  const esc = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') closePopover();
+  };
+  setTimeout(() => document.addEventListener('pointerdown', away, true));
+  el.addEventListener('keydown', esc);
+  popoverCleanup = () => document.removeEventListener('pointerdown', away, true);
 }
 
 function openColorPopover(
@@ -184,7 +210,6 @@ function openColorPopover(
   opts: ColorOpts,
   onPick: (v: string, final: boolean) => void,
 ): void {
-  closePopover();
   const start = (value && value !== 'none' && resolveColor(value)) || { r: 0, g: 0, b: 0, a: 1 };
   let rgba = { ...start };
   const picker = h('input', { class: 'pop-picker', attrs: { type: 'color', value: toHex(rgba) } });
@@ -238,7 +263,7 @@ function openColorPopover(
       })
     : null;
 
-  popover = h(
+  const pop = h(
     'div',
     { class: 'popover', attrs: { role: 'dialog', 'aria-label': 'Colour picker' } },
     h('div', { class: 'pop-row' }, picker, noneBtn),
@@ -246,23 +271,7 @@ function openColorPopover(
     swatches.length ? h('div', { class: 'pop-caption', text: 'Colours in this page' }) : null,
     swatches.length ? h('div', { class: 'pop-swatches' }, ...swatches) : null,
   );
-  document.body.append(popover);
-  const r = anchor.getBoundingClientRect();
-  const pw = 244;
-  popover.style.left = `${Math.max(8, Math.min(window.innerWidth - pw - 8, r.right - pw))}px`;
-  const below = r.bottom + 6;
-  popover.style.top = `${below + 260 > window.innerHeight ? Math.max(8, r.top - 266) : below}px`;
-
-  const away = (e: PointerEvent) => {
-    if (popover && !popover.contains(e.target as Node) && !anchor.contains(e.target as Node)) {
-      closePopover();
-      document.removeEventListener('pointerdown', away, true);
-    }
-  };
-  setTimeout(() => document.addEventListener('pointerdown', away, true));
-  popover.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closePopover();
-  });
+  showPopover(anchor, pop, 244, 260);
 }
 
 // ---------------------------------------------------------------- select
@@ -411,6 +420,77 @@ export function textControl(
   if (listEl) wrap.append(listEl);
   const refresh = () => {
     if (!busy(wrap)) input.value = bind.get();
+  };
+  refresh();
+  return { el: wrap, refresh };
+}
+
+// ---------------------------------------------------------------- font
+
+export interface FontGroup {
+  title: string;
+  fonts: string[];
+}
+
+/**
+ * A font name field plus a list of fonts, each shown in its own typeface.
+ * The field shows one name; `toValue` turns a name into the full CSS
+ * font list that gets written.
+ */
+export function fontControl(
+  label: string,
+  bind: Binding<string>,
+  opts: { groups: () => FontGroup[]; display: (value: string) => string; toValue: (name: string) => string },
+): Control {
+  const input = h('input', { class: 'ctl-input ctl-font', attrs: { type: 'text', spellcheck: 'false', placeholder: 'Font name' } });
+  const open = h('button', { class: 'ctl-font-open', text: '▾', attrs: { type: 'button', 'aria-label': `Choose ${label.toLowerCase()}` } });
+  const wrap = row(label, h('div', { class: 'ctl-font-wrap' }, input, open));
+
+  const pick = (name: string) => {
+    const v = name.trim();
+    if (v) bind.set(opts.toValue(v), true);
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') pick(input.value);
+    if (e.key === 'Escape') {
+      input.value = opts.display(bind.get());
+      input.blur();
+    }
+  });
+  input.addEventListener('change', () => pick(input.value));
+
+  open.addEventListener('click', () => {
+    const current = opts.display(bind.get()).toLowerCase();
+    let selected: HTMLElement | null = null;
+    const list = h('div', { class: 'popover font-pop', attrs: { role: 'listbox', 'aria-label': label } });
+    for (const group of opts.groups()) {
+      list.append(h('div', { class: 'pop-caption font-group', text: group.title }));
+      for (const name of group.fonts) {
+        const item = h('button', {
+          class: `font-opt${name.toLowerCase() === current ? ' on' : ''}`,
+          text: name,
+          title: name,
+          attrs: { type: 'button', role: 'option', style: `font-family: ${quoteFamily(name)}, sans-serif` },
+          on: {
+            click: () => {
+              pick(name);
+              input.value = name;
+              closePopover();
+            },
+          },
+        });
+        if (name.toLowerCase() === current) selected = item;
+        list.append(item);
+      }
+    }
+    showPopover(open, list, 240, 340);
+    selected?.scrollIntoView({ block: 'center' });
+  });
+
+  const refresh = () => {
+    const v = bind.get();
+    wrap.title = v; // the full fallback list, on hover
+    if (!busy(wrap)) input.value = opts.display(v);
   };
   refresh();
   return { el: wrap, refresh };

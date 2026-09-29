@@ -35,9 +35,11 @@ In Chrome and Edge, Ctrl+S writes straight back to the file you opened (the brow
 | **Move** | Drag it. It snaps into line with its neighbours (pink guides). **Shift** keeps it in a straight line, **Alt** turns snapping off, and **arrow keys** nudge by 1px (**Shift** for 10px). |
 | **Resize** | Drag the handles. **Shift** keeps the proportions. Works on boxes, SVG rectangles, circles and ellipses, and on the two ends of SVG lines. |
 | **Colours** | Text, background, border, SVG fill and stroke. The picker offers the colours your page already uses. |
+| **Gradients** | A gradient background gets its own editor: one colour per stop, the angle, and linear/radial/conic. Add or remove colours, remove the gradient, or turn a plain fill into one with **Make it a gradient**. |
 | **Borders** | Width, style (solid, dashed, dotted…), colour and corner radius. |
 | **Arrows** | Line colour, width, dashes and line ends, plus the **arrowhead colour**. When several arrows share one arrowhead, Tweakerr copies it for the arrows you change, so the others stay as they were. If you've selected every arrow that uses it, it's recoloured in place. |
-| **Text** | Double-click to type in place. Also font, size, weight, alignment, bold, italic, underline and uppercase. |
+| **Text** | Double-click to type in place. Also size, weight, alignment, bold, italic, underline and uppercase. |
+| **Fonts** | The font field shows a single name. Its list offers the fonts your page uses, common fonts found on most computers, and CSS's basic kinds, each drawn in its own typeface. Tweakerr adds a matching fallback (e.g. `Georgia, serif`) so the text still looks right on machines without the font. |
 | **Effects** | Opacity, shadow and layer order (z-index). |
 | **Spacing** | Padding and margin. |
 | **Page** | Background, text colour and font for the whole page. |

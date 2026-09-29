@@ -30,7 +30,7 @@ export function collectPalette(doc: Document, limit = 24): string[] {
 
 const fontCache = new WeakMap<Document, string[]>();
 
-/** Font stacks used on the page plus safe defaults. Cached per document. */
+/** The font lists (font-family values) this page uses. Cached per document. */
 export function collectFonts(doc: Document): string[] {
   const cached = fontCache.get(doc);
   if (cached) return cached;
@@ -42,7 +42,6 @@ export function collectFonts(doc: Document): string[] {
       if (stack) seen.add(stack);
     }
   }
-  for (const f of ['system-ui, sans-serif', 'Georgia, serif', 'ui-monospace, monospace', 'Arial, sans-serif']) seen.add(f);
   const fonts = [...seen];
   fontCache.set(doc, fonts);
   return fonts;

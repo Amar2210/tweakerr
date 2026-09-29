@@ -3,7 +3,7 @@ import { deleteSelected, duplicateSelected, elementKey, selectParent, toggleHidd
 import { describe, isStructural } from '../doc/kinds';
 import { sameColour, sameType, type Match } from '../doc/similar';
 import { inlineStyle } from '../doc/style';
-import { h } from '../util/dom';
+import { h, isTypingTarget } from '../util/dom';
 import { icon, type IconName } from '../util/icons';
 import type { Control } from './controls';
 import { buildSections } from './sections';
@@ -29,9 +29,10 @@ export class PropertiesPanel {
   }
 
   private onChange(): void {
-    // Rebuild when safe (structure can change, e.g. a gradient removed);
-    // otherwise only refresh values so we never steal focus mid-typing.
-    if (this.editor.busy || this.root.contains(document.activeElement) || this.root.querySelector('[data-scrubbing="1"]')) {
+    // Rebuild when safe (structure can change, e.g. a gradient colour added);
+    // while typing in a field or scrubbing, only refresh values so focus stays put.
+    const typing = this.root.contains(document.activeElement) && isTypingTarget(document.activeElement);
+    if (this.editor.busy || typing || this.root.querySelector('[data-scrubbing="1"]')) {
       this.refresh();
     } else {
       this.build();

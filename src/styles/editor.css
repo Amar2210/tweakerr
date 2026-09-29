@@ -649,6 +649,75 @@ body:not(.has-doc) .zoom-label {
   font-variant-numeric: tabular-nums;
 }
 
+.ctl-font-wrap {
+  display: flex;
+  min-width: 0;
+}
+
+.ctl-font {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.ctl-font-open {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--field);
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.ctl-font-open:hover {
+  color: var(--accent);
+}
+
+.font-pop {
+  max-height: 340px;
+  overflow-y: auto;
+  gap: 1px;
+}
+
+/* The popover is a flex column: without this, a long list squashes its rows instead of scrolling. */
+.font-pop > * {
+  flex: none;
+}
+
+.font-group {
+  padding: 8px 6px 3px;
+}
+
+.font-group:first-child {
+  padding-top: 2px;
+}
+
+.font-opt {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.font-opt:hover {
+  background: var(--panel-2);
+}
+
+.font-opt.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .ctl-color {
   display: flex;
   gap: 6px;
