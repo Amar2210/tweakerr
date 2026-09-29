@@ -1,4 +1,8 @@
-# Tweakerr
+<p align="center">
+  <img src="assets/logo.svg" width="112" alt="Tweakerr logo">
+</p>
+
+<h1 align="center">Tweakerr</h1>
 
 **Click-to-edit for HTML files.** Open an `.html` page (the kind an AI assistant writes for you), click a box, and change it: border, colours, arrow colour, size, position, opacity, spacing, text. Select several things, or "all like this", and change them together. Save, and you get the same file back with just those changes.
 

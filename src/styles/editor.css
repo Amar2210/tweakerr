@@ -120,14 +120,9 @@ button:disabled {
 
 .logo,
 .empty-logo {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 800;
+  display: block;
+  width: 26px;
+  height: 26px;
 }
 
 .tb-group {
@@ -1028,11 +1023,9 @@ body:not(.has-doc) .stage {
 }
 
 .empty-logo {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   margin: 0 auto 14px;
-  border-radius: 12px;
-  font-size: 22px;
 }
 
 .empty-card h1 {
