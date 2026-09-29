@@ -860,6 +860,10 @@ body:not(.has-doc) .zoom-label {
   outline: none;
   position: relative;
   overflow: auto;
+  /* Keep the scrollbar's space reserved. Otherwise a page fitted to the
+     width can need a scrollbar, shrink to fit beside it, no longer need
+     it, grow back, and flicker in a loop. */
+  scrollbar-gutter: stable;
   background: var(--canvas);
   background-image: radial-gradient(color-mix(in srgb, var(--text-3) 22%, transparent) 1px, transparent 1px);
   background-size: 16px 16px;
