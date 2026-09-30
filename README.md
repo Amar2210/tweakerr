@@ -14,13 +14,19 @@ No code editor, no asking the AI again for a one-pixel nudge.
 
 > Made with Claude.
 
+## Get it
+
+- **Use it in your browser:** open **https://amar2210.github.io/tweakerr/**. It is always the latest version.
+- **Download it for offline use:** [**tweakerr.html**](https://github.com/Amar2210/tweakerr/releases/latest/download/tweakerr.html). This link always gives the newest release. Double-click the downloaded file to open it in Chrome or Edge. It needs no install and no internet. To update, download it again and replace the old file.
+
+Either way, the pages you edit stay on your computer. Tweakerr opens and saves them inside your browser and never uploads them.
+
 ## Quick start
 
-1. Get `tweakerr.html`: download it from a release, or build it yourself (see [Build it](#build-it)).
-2. Open it in **Chrome or Edge** by double-clicking it.
-3. Click **Open**, or drop an `.html` file onto the window.
-4. Click anything and edit it in the panel on the right.
-5. Press **Ctrl+S**.
+1. Open Tweakerr (see [Get it](#get-it)) in **Chrome or Edge**.
+2. Click **Open**, or drop an `.html` file onto the window.
+3. Click anything and edit it in the panel on the right.
+4. Press **Ctrl+S**.
 
 In Chrome and Edge, Ctrl+S writes straight back to the file you opened (the browser asks for permission the first time). In other browsers, or with a dropped file that the browser won't let Tweakerr write to, Save downloads the edited copy.
 

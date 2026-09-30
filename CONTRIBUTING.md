@@ -67,6 +67,29 @@ The page being edited is loaded into an `<iframe sandbox="allow-same-origin">` v
 
   Keep `--output` outside the repo, because it holds edited copies of your files. Never commit real or private files as fixtures.
 
+## Releasing
+
+GitHub Actions does the building and publishing (`.github/workflows/`):
+
+- **Every push to `main`** updates the web version at https://amar2210.github.io/tweakerr/ (`pages.yml`).
+- **Every pushed `v*` tag** builds `tweakerr.html` and publishes it as a GitHub Release (`release.yml`). The download link `releases/latest/download/tweakerr.html` then points at it.
+
+To make a release:
+
+1. Run `npm run check`.
+2. Bump the version: `npm version 0.3.0 --no-git-tag-version`. This updates `package.json` and `package-lock.json`. Commit it.
+3. Tag it. The tag's message becomes the release notes:
+
+   ```sh
+   git tag -a v0.3.0 -m "Tweakerr 0.3.0
+
+   - What's new, one line each"
+   ```
+
+4. Push both: `git push origin main` and then `git push origin v0.3.0`.
+
+The release job stops if the tag doesn't match `package.json`, so a forgotten bump is caught. Keep the attached file named `tweakerr.html`, or the "latest" download link breaks.
+
 ## Notes for WSL / machines without sudo
 
 **Chromium won't start** (`libnspr4.so: cannot open shared object file`). If you can't `sudo npx playwright install-deps`, unpack the three missing libraries into your home folder:

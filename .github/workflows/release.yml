@@ -1,0 +1,39 @@
+# Pushing a tag like v0.3.0 builds tweakerr.html and publishes it as a GitHub Release.
+# The release notes are the tag's message: git tag -a v0.3.0 -m "What's new…"
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Fetch the tag object itself, so its message can become the notes.
+          fetch-depth: 0
+      # checkout can leave the pushed tag as a plain pointer without its message.
+      - run: git fetch --force --tags
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Tag must match package.json
+        run: |
+          want="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::Tag is $GITHUB_REF_NAME but package.json says $want. Bump the version first."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/tweakerr.html --title "Tweakerr $GITHUB_REF_NAME" --notes-from-tag
