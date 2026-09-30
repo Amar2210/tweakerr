@@ -197,3 +197,19 @@ test('stepping an arrow the code redraws: it stays selected, and stops when rele
   await page.waitForTimeout(1000);
   expect(await shift()).toBe('4px'); // nothing kept stepping
 });
+
+test('moving an arrow along Y right after the code redrew it keeps its X', async ({ page }) => {
+  await select(page, '#wire-order-invoice');
+  const byName = (n: string) => field(page, n, 'Position').getByRole('button', { name: /^Increase/ });
+  const shift = () => inPage(page, (d) => getComputedStyle(d.getElementById('wire-order-invoice')!).translate);
+  const clickThenWaitForRedraw = async (n: string) => {
+    const before = await page.evaluateHandle(() => (window as any).tweakerr.editor.doc.getElementById('wire-order-invoice'));
+    await byName(n).click();
+    await page.waitForFunction((el) => !(el as Element).isConnected, before);
+  };
+  await clickThenWaitForRedraw('X');
+  await clickThenWaitForRedraw('X');
+  await clickThenWaitForRedraw('Y'); // lands before Tweakerr caught up with the redraw
+  await expect.poll(shift).toBe('2px 1px');
+  await expect(field(page, 'X', 'Position').locator('input')).toHaveValue('2');
+});

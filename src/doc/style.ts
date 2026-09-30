@@ -8,6 +8,9 @@ import { liveFor } from './live';
 type Styled = Element & ElementCSSInlineStyle;
 
 export function computed(el: Element, prop: string): string {
+  // A live page may have just redrawn this element: read the copy on the page
+  // (a detached element has no styles, so X would read as 0 when moving Y).
+  if (!el.isConnected) el = liveFor(el.ownerDocument)?.relocate(el) ?? el;
   const win = el.ownerDocument.defaultView;
   return win ? win.getComputedStyle(el).getPropertyValue(prop).trim() : '';
 }

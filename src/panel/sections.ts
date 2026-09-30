@@ -586,7 +586,10 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
       }, `${key}:shift`),
   });
   const geo: Control[] = [
-    gridControl('Moved', [numberControl('X', shift(0), { inline: true, unit: '' }), numberControl('Y', shift(1), { inline: true, unit: '' })]),
+    gridControl('Moved', [
+      numberControl('X', shift(0), { inline: true, unit: editor.live ? 'px' : '', title: 'Moved right' }),
+      numberControl('Y', shift(1), { inline: true, unit: editor.live ? 'px' : '', title: 'Moved down' }),
+    ]),
   ];
   const nums = (names: string[]) =>
     gridControl('', names.map((n) => numberControl(n, attr(n), { inline: true, unit: '' })), 2);
