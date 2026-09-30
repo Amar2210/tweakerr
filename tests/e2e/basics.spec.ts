@@ -106,7 +106,7 @@ test('the properties panel collapses too; only the layers strip shows an icon', 
   await page.locator('#props-toggle').click();
   await expect(page.locator('#props')).toBeHidden();
   await expect(page.locator('#props-toggle')).toHaveAttribute('aria-label', 'Show properties');
-  await expect(page.locator('.side.right svg')).toHaveCount(1); // just the arrow
+  await expect(page.locator('.side.right .side-strip')).toHaveCount(0); // just the arrow
   expect(await canvasWidth()).toBeGreaterThan(w0 + 200);
 
   await page.locator('#layers-toggle').click();

@@ -691,32 +691,90 @@ body:not(.has-doc) .zoom-label {
   gap: 6px;
 }
 
+/* A short name ("W", "Size") sits outside, left of its field. */
 .ctl-inline {
   display: flex;
   align-items: center;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--field);
-  height: 26px;
+  gap: 6px;
   min-width: 0;
-}
-
-.ctl-inline:focus-within {
-  border-color: var(--accent);
 }
 
 .ctl-inline .ctl-label {
   flex: none;
-  padding: 0 0 0 7px;
   font-size: 11px;
-  color: var(--text-3);
 }
 
-.ctl-inline .ctl-input {
-  border: 0;
+/* Number field: the box holds the text and the small up/down buttons. */
+.ctl-num {
+  flex: 1 1 auto;
+  display: flex;
+  height: 26px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--field);
+  overflow: hidden;
+}
+
+.ctl-num:hover {
+  border-color: var(--line-strong);
+}
+
+.ctl-num:focus-within {
+  border-color: var(--accent);
+}
+
+.ctl-num .ctl-input {
   height: 24px;
+  border: 0;
+  border-radius: 0;
   background: transparent;
-  padding: 0 6px;
+  padding: 0 2px 0 7px;
+}
+
+.ctl-steps {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: 15px;
+  border-left: 1px solid var(--line);
+}
+
+.ctl-step {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.ctl-step + .ctl-step {
+  border-top: 1px solid var(--line);
+}
+
+.ctl-step:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.ctl-step:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ctl-step svg {
+  width: 9px;
+  height: 9px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .ctl-number {

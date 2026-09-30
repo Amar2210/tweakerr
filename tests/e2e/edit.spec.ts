@@ -106,3 +106,52 @@ test('delete, duplicate, hide — and undo brings back the same element', async 
   expect(await domDiff(page, ORIGINAL, html)).toEqual([]);
   await expect(page).toHaveTitle('• board.html — Tweakerr');
 });
+
+test('the small up/down buttons step a field; holding one repeats; it is one undo step', async ({ page }) => {
+  await select(page, '#box-b');
+  const border = field(page, 'Border', 'Fill & border');
+  // The screen draws borders in whole pixels, so check what was set.
+  const width = () => inPage(page, (d) => d.getElementById('box-b')!.style.borderTopWidth || getComputedStyle(d.getElementById('box-b')!).borderTopWidth);
+  const start = parseFloat(await width());
+  await border.getByRole('button', { name: 'Increase Border width' }).click();
+  await border.getByRole('button', { name: 'Increase Border width' }).click();
+  await expect.poll(width).toBe(`${Math.round((start + 0.2) * 100) / 100}px`);
+  await expect(border.locator('input')).toHaveValue(String(Math.round((start + 0.2) * 100) / 100));
+
+  const radius = field(page, 'Radius', 'Fill & border');
+  const r0 = parseFloat(await radius.locator('input').inputValue());
+  const down = radius.getByRole('button', { name: 'Decrease Corner radius' });
+  const b = (await down.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700); // held: repeats after 400ms
+  await page.mouse.up();
+  const r1 = parseFloat(await radius.locator('input').inputValue());
+  expect(r1).toBeLessThan(r0 - 2);
+
+  await page.locator('#canvas').focus();
+  await page.keyboard.press('Control+z');
+  await expect(radius.locator('input')).toHaveValue(String(r0));
+});
+
+test('dashing a box that has lines on only two sides gives an even frame', async ({ page }) => {
+  await inPage(page, (d) => {
+    d.getElementById('badge')!.setAttribute('style', 'border: 0; border-right: 1px solid rgb(10, 20, 30); border-bottom: 1px solid rgb(10, 20, 30)');
+  });
+  await select(page, '#badge');
+  await expect(field(page, 'Border', 'Fill & border').locator('input')).toHaveValue('1');
+  await field(page, 'Style', 'Fill & border').locator('select').selectOption('dashed');
+  const sides = await inPage(page, (d) => {
+    const s = getComputedStyle(d.getElementById('badge')!);
+    return ['top', 'right', 'bottom', 'left'].map((k) => ['style', 'width', 'color'].map((p) => s.getPropertyValue(`border-${k}-${p}`)).join(' '));
+  });
+  expect(sides).toEqual(Array(4).fill('dashed 1px rgb(10, 20, 30)'));
+});
+
+test('letter gap shows 0 for the font\'s own spacing, and steps from there', async ({ page }) => {
+  await select(page, '#title');
+  const gap = field(page, 'Letter gap', 'Text');
+  await expect(gap.locator('input')).toHaveValue('0');
+  await gap.getByRole('button', { name: /^Increase/ }).click();
+  expect(await inPage(page, (d) => getComputedStyle(d.getElementById('title')!).letterSpacing)).toBe('1px');
+});

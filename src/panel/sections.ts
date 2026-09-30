@@ -4,7 +4,7 @@ import { canHaveMarkers, isStructural, isSvgChild, isSvgRoot } from '../doc/kind
 import { ensureGroupMarker, followsLine, markerColor, markerOf, type MarkerEnd, setMarkerColor } from '../doc/markers';
 import { COMMON_FONTS, GENERIC_FONTS, pageFamilies, primaryFamily, stackFor } from '../doc/fonts';
 import { collectFonts, collectPalette } from '../doc/palette';
-import { computed, setAttr, setStyle } from '../doc/style';
+import { computed, inlineStyle, setAttr, setStyle } from '../doc/style';
 import { formatColor, resolveColor } from '../util/color';
 import { addSvgTranslate, formatCssTranslate, parseCssTranslate, r2, readSvgTranslate } from '../util/geometry';
 import { prepareOffset } from '../canvas/transform';
@@ -132,8 +132,9 @@ function textSection(editor: Editor, el: Element, els: Element[], css: Css, pale
     controls: [
       fontField(editor, css),
       gridControl('', [
-        numberControl('Size', css('font-size'), { inline: true, min: 1 }),
-        numberControl('Line', css('line-height'), { inline: true, unit: '', step: 0.1, min: 0 }),
+        numberControl('Size', css('font-size'), { inline: true, min: 1, title: 'Text size' }),
+        // "normal" is about 1.2 × the text size; the arrows start from there.
+        numberControl('Line', css('line-height'), { inline: true, min: 0, title: 'Line height', start: () => Math.round((parseFloat(computed(el, 'font-size')) || 16) * 1.2) }),
       ]),
       selectControl('Weight', WEIGHTS, css('font-weight')),
       colorControl('Colour', css('color'), { palette }),
@@ -149,7 +150,9 @@ function textSection(editor: Editor, el: Element, els: Element[], css: Css, pale
         { label: 'U', title: 'Underline', className: 'u', bind: flag('text-decoration-line', 'underline', 'none', (v) => v.includes('underline')) },
         { label: 'AA', title: 'Uppercase', bind: flag('text-transform', 'uppercase', 'none', (v) => v === 'uppercase') },
       ]),
-      numberControl('Spacing', css('letter-spacing'), { step: 0.1 }),
+      numberControl('Letter gap', css('letter-spacing', { read: () => (computed(el, 'letter-spacing') === 'normal' ? '0px' : computed(el, 'letter-spacing')) }), {
+        title: "Extra space between letters (0 = the font's own spacing)",
+      }),
     ],
   };
 }
@@ -281,19 +284,40 @@ function gradientControls(editor: Editor, el: Element, els: Element[], css: Css,
 function fillSection(editor: Editor, el: Element, els: Element[], css: Css, palette: Palette): Section {
   const controls: Control[] = [colorControl('Fill', css('background-color'), { none: 'transparent', palette })];
   controls.push(...gradientControls(editor, el, els, css, palette));
+  // The fields show the border's main (widest) side: a grid cell may only have one on the right and bottom.
+  const side = () => shownSides(el)[0] ?? 'top';
   const borderWidth = css('border-width', {
-    read: () => computed(el, 'border-top-width'),
+    // What was set ("2.2px"): the screen draws borders in whole pixels, so the computed width may be rounded.
+    read: () => inlineStyle(el, `border-${side()}-width`) || computed(el, `border-${side()}-width`),
     write: (e, v) => {
+      evenBorder(e);
       setStyle(e, 'border-width', v);
       // A width alone shows nothing while the style is "none".
-      if (parseFloat(v) > 0 && computed(e, 'border-top-style') === 'none') setStyle(e, 'border-style', 'solid');
+      if (parseFloat(v) > 0 && !shownSides(e).length) setStyle(e, 'border-style', 'solid');
+    },
+  });
+  const borderStyle = css('border-style', {
+    read: () => computed(el, `border-${side()}-style`),
+    write: (e, v) => {
+      if (v !== 'none') {
+        // No border yet (or `border: 0`): a style alone would show a 3px one, or nothing.
+        if (!shownSides(e).length) setStyle(e, 'border-width', '1px');
+        else evenBorder(e);
+      }
+      setStyle(e, 'border-style', v);
     },
   });
   controls.push(
-    numberControl('Border', borderWidth, { min: 0 }),
-    selectControl('Style', BORDER_STYLES, css('border-style', { read: () => computed(el, 'border-top-style') })),
-    colorControl('Colour', css('border-color', { read: () => computed(el, 'border-top-color') }), { palette }),
-    numberControl('Radius', css('border-radius', { read: () => computed(el, 'border-top-left-radius') }), { min: 0 }),
+    numberControl('Border', borderWidth, { min: 0, step: 0.1, title: 'Border width' }),
+    selectControl('Style', BORDER_STYLES, borderStyle),
+    colorControl('Colour', css('border-color', {
+      read: () => computed(el, `border-${side()}-color`),
+      write: (e, v) => {
+        evenBorder(e);
+        setStyle(e, 'border-color', v);
+      },
+    }), { palette }),
+    numberControl('Radius', css('border-radius', { read: () => computed(el, 'border-top-left-radius') }), { min: 0, title: 'Corner radius' }),
   );
   return { title: 'Fill & border', controls };
 }
@@ -319,9 +343,15 @@ function layoutSection(editor: Editor, el: Element, els: Element[], css: Css): S
   return {
     title: 'Size & position',
     controls: [
-      gridControl('', [numberControl('W', size('width'), { inline: true, min: 0 }), numberControl('H', size('height'), { inline: true, min: 0 })]),
-      gridControl('', [numberControl('X', shift(0), { inline: true }), numberControl('Y', shift(1), { inline: true })]),
-      numberControl('Layer', z, { unit: '', placeholder: 'auto' }),
+      gridControl('', [
+        numberControl('W', size('width'), { inline: true, min: 0, title: 'Width' }),
+        numberControl('H', size('height'), { inline: true, min: 0, title: 'Height' }),
+      ]),
+      gridControl('', [
+        numberControl('X', shift(0), { inline: true, title: 'Moved right' }),
+        numberControl('Y', shift(1), { inline: true, title: 'Moved down' }),
+      ]),
+      numberControl('Layer', z, { unit: '', placeholder: 'auto', title: 'Which is on top when things overlap (higher = in front)' }),
       buttonsControl([
         {
           label: 'Reset move',
@@ -389,7 +419,7 @@ function spacingSection(css: Css): Section {
     gridControl(
       cap(kind),
       (['top', 'right', 'bottom', 'left'] as const).map((side) =>
-        numberControl(side[0].toUpperCase(), css(`${kind}-${side}`), { inline: true, min: kind === 'padding' ? 0 : undefined }),
+        numberControl(side[0].toUpperCase(), css(`${kind}-${side}`), { inline: true, min: kind === 'padding' ? 0 : undefined, title: `${cap(side)} ${kind}` }),
       ),
       2,
     );
@@ -624,4 +654,26 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
 
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const SIDES = ['top', 'right', 'bottom', 'left'] as const;
+
+/** The border sides that show, widest first. */
+function shownSides(el: Element): (typeof SIDES)[number][] {
+  const width = (s: string) => parseFloat(computed(el, `border-${s}-width`)) || 0;
+  return SIDES.filter((s) => computed(el, `border-${s}-style`) !== 'none' && width(s) > 0).sort((a, b) => width(b) - width(a));
+}
+
+/**
+ * A box with a border on only some sides (a grid cell's right and bottom
+ * lines) is given the look of its main side all round, so changing the style,
+ * width or colour gives one even frame, instead of the browser's default
+ * 3px text-colour border on the other sides.
+ */
+function evenBorder(e: Element): void {
+  const main = shownSides(e)[0];
+  if (!main) return;
+  const look = (s: string) => ['style', 'width', 'color'].map((p) => computed(e, `border-${s}-${p}`)).join('|');
+  if (SIDES.every((s) => look(s) === look(main))) return;
+  for (const p of ['style', 'width', 'color']) setStyle(e, `border-${p}`, computed(e, `border-${main}-${p}`));
 }

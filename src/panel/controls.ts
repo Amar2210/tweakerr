@@ -1,6 +1,7 @@
 import { formatColor, resolveColor, toHex } from '../util/color';
 import { quoteFamily } from '../doc/fonts';
 import { h } from '../util/dom';
+import { icon } from '../util/icons';
 
 /**
  * Reusable property controls. Each reads its value through `get()` and
@@ -36,20 +37,25 @@ export interface NumberOpts {
   min?: number;
   max?: number;
   placeholder?: string;
-  /** Short label shown inside the field instead of a row label (e.g. "W"). */
+  /** Short label right next to the field instead of a row label (e.g. "W"). */
   inline?: boolean;
+  /** Label tooltip, e.g. the full name of a short label. */
+  title?: string;
+  /** Where the arrows start when the field holds a word ("normal", "auto"). */
+  start?: () => number;
 }
 
 /**
  * A number field with a scrubbable label: drag the label left/right to
- * change the value, or use ↑/↓ (Shift = ×10). Accepts any CSS value
- * ("auto", "2em", "50%") — bare numbers get the default unit.
+ * change the value, or use the small up/down buttons or ↑/↓ (Shift = ×10;
+ * hold a button to repeat). Accepts any CSS value ("auto", "2em", "50%"):
+ * bare numbers get the default unit.
  */
 export function numberControl(label: string, bind: Binding<string>, opts: NumberOpts = {}): Control {
   const unit = opts.unit ?? 'px';
   const step = opts.step ?? 1;
   const input = h('input', { class: 'ctl-input ctl-number', attrs: { type: 'text', spellcheck: 'false', placeholder: opts.placeholder ?? '' } });
-  const lab = h('label', { class: `ctl-label scrub${opts.inline ? ' ctl-inline-label' : ''}`, text: label, title: 'Drag to adjust' });
+  const lab = h('label', { class: 'ctl-label scrub', text: label, title: `${opts.title ? `${opts.title} · ` : ''}Drag to adjust` });
 
   const display = (v: string) => {
     if (!v) return '';
@@ -69,7 +75,10 @@ export function numberControl(label: string, bind: Binding<string>, opts: Number
     if (opts.max !== undefined) n = Math.min(opts.max, n);
     return round(n);
   };
-  const current = () => parseFloat(input.value) || 0;
+  const current = () => {
+    const n = parseFloat(input.value);
+    return Number.isFinite(n) ? n : (opts.start?.() ?? 0);
+  };
 
   const commit = () => bind.set(normalize(input.value), true);
   input.addEventListener('keydown', (e) => {
@@ -111,7 +120,41 @@ export function numberControl(label: string, bind: Binding<string>, opts: Number
     lab.addEventListener('pointerup', onUp);
   });
 
-  const wrap = opts.inline ? h('div', { class: 'ctl-inline' }, lab, input) : row(lab, input);
+  // Up/down buttons: one step per click, repeating while held; one undo step.
+  const stepper = (dir: 1 | -1) => {
+    const b = h('button', {
+      class: 'ctl-step',
+      attrs: { type: 'button', tabindex: '-1', 'aria-label': `${dir > 0 ? 'Increase' : 'Decrease'} ${opts.title ?? label}` },
+    }, icon(dir > 0 ? 'caretUp' : 'caretDown'));
+    b.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault(); // keep focus where it was
+      b.setPointerCapture(e.pointerId);
+      wrap.dataset.scrubbing = '1';
+      const bump = () => {
+        input.value = String(clampNum(current() + dir * step * (e.shiftKey ? 10 : 1)));
+        bind.set(normalize(input.value), false);
+      };
+      bump();
+      let timer = window.setTimeout(function repeat() {
+        bump();
+        timer = window.setTimeout(repeat, 60);
+      }, 400);
+      const end = () => {
+        clearTimeout(timer);
+        b.removeEventListener('pointerup', end);
+        b.removeEventListener('pointercancel', end);
+        delete wrap.dataset.scrubbing;
+        bind.set(normalize(input.value), true);
+      };
+      b.addEventListener('pointerup', end);
+      b.addEventListener('pointercancel', end);
+    });
+    return b;
+  };
+  const box = h('div', { class: 'ctl-num' }, input, h('div', { class: 'ctl-steps' }, stepper(1), stepper(-1)));
+
+  const wrap = opts.inline ? h('div', { class: 'ctl-inline' }, lab, box) : row(lab, box);
   const refresh = () => {
     if (!busy(wrap)) input.value = display(bind.get());
   };
