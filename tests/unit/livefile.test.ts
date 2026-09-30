@@ -38,6 +38,33 @@ describe('text swaps', () => {
   });
 });
 
+describe('words written several times', () => {
+  const DATA = `<script>
+  const nodes = [
+    {id:"k_emp",t:"Employee data",team:"HR"},
+    {id:"k_con",t:"Contract employees",team:"HR", note:"a } in a string", /* and { in a comment */},
+    ["Travel", "HR"],
+  ];
+</script>`;
+
+  it('picks the copy in the same {…} as the item\'s other words', () => {
+    expect(findText(DATA, 'HR')).toBeNull();
+    const out = applySwaps(DATA, [{ from: 'HR', to: 'People', anchor: 'Contract employees' }]);
+    expect(out).toContain('{id:"k_con",t:"Contract employees",team:"People"');
+    expect(out.match(/"HR"/g)).toHaveLength(2);
+  });
+
+  it('works for […] too, and ignores brackets inside strings and comments', () => {
+    expect(applySwaps(DATA, [{ from: 'HR', to: 'People', anchor: 'Travel' }])).toContain('["Travel", "People"]');
+    expect(applySwaps(DATA, [{ from: 'HR', to: 'People', anchor: 'Employee data' }])).toContain('t:"Employee data",team:"People"');
+  });
+
+  it('refuses when the anchor is itself written twice, or the group holds both copies', () => {
+    expect(findText(DATA + '<script>x("Travel")</script>', 'HR', 'Travel')).toBeNull();
+    expect(findText('<script>[{a:"X", b:"HR", c:"HR"}]</script>', 'HR', 'X')).toBeNull();
+  });
+});
+
 describe('edits block', () => {
   const rules = ['#a { color: red !important; }'];
 

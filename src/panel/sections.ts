@@ -595,10 +595,10 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
         set: (v) => {
           const live = editor.live;
           if (!live) return editor.edit('Edit text', () => { el.textContent = v; }, `${key}:text`);
-          const refused = live.canEditText(el);
-          if (refused) return editor.notify(refused);
+          const check = live.checkText(el);
+          if (typeof check === 'string') return editor.notify(check);
           editor.edit('Edit text', () => {
-            live.recordText(el, el.textContent ?? '', v);
+            live.recordText(el, el.textContent ?? '', v, check.anchor);
             el.textContent = v;
           }, `${key}:text`);
         },

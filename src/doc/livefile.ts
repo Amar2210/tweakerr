@@ -12,6 +12,11 @@ export const EDITS_ID = 'tweakerr-edits';
 export interface TextSwap {
   from: string;
   to: string;
+  /**
+   * Other words of the same item ("Employee data"), used when `from` ("HR")
+   * is written several times: the one in the same {…} or […] as this wins.
+   */
+  anchor?: string;
 }
 
 type Found = { index: number; length: number; write: (to: string) => string };
@@ -36,22 +41,40 @@ function occurrences(hay: string, needle: string): number[] {
   return out;
 }
 
-/**
- * Where this text is written in the file, if Tweakerr can tell for sure:
- * first as a whole string in the code ('Invoice', "Invoice" or `Invoice`),
- * then as plain text. Null when it's missing or written more than once.
- */
-export function findText(source: string, text: string): Found | null {
-  if (!text.trim()) return null;
-  const literals: Found[] = [];
+function literalsOf(source: string, text: string): Found[] {
+  const out: Found[] = [];
   for (const q of QUOTES) {
     const lit = `${q}${escapeJs(text, q)}${q}`;
     for (const index of occurrences(source, lit)) {
-      literals.push({ index, length: lit.length, write: (to) => `${q}${escapeJs(to, q)}${q}` });
+      out.push({ index, length: lit.length, write: (to) => `${q}${escapeJs(to, q)}${q}` });
     }
   }
+  return out.sort((a, b) => a.index - b.index);
+}
+
+/** How many times these words are written as a string in the code. */
+export function literalCount(source: string, text: string): number {
+  return literalsOf(source, text).length;
+}
+
+/**
+ * Where this text is written in the file, if Tweakerr can tell for sure:
+ * first as a whole string in the code ('Invoice', "Invoice" or `Invoice`),
+ * then as plain text. Null when it's missing or can't be told apart.
+ *
+ * When the string is written several times (team: "HR" on three cards),
+ * `anchor` picks one: the copy inside the same {…} or […] as the anchor
+ * words, which must themselves be written only once ("Employee data").
+ */
+export function findText(source: string, text: string, anchor?: string): Found | null {
+  if (!text.trim()) return null;
+  const literals = literalsOf(source, text);
   if (literals.length === 1) return literals[0];
-  if (literals.length > 1) return null;
+  if (literals.length > 1) {
+    const box = anchor ? anchorGroup(source, anchor) : null;
+    const inside = box ? literals.filter((l) => l.index > box[0] && l.index + l.length <= box[1]) : [];
+    return inside.length === 1 ? inside[0] : null;
+  }
 
   for (const needle of new Set([text, escapeHtml(text)])) {
     const at = occurrences(source, needle);
@@ -70,10 +93,55 @@ function inScript(source: string, index: number): boolean {
   return before.lastIndexOf('<script') > before.lastIndexOf('</script');
 }
 
+/**
+ * The innermost {…} or […] in the code around the anchor words, as
+ * [open, close] offsets; null when the anchor isn't written exactly once.
+ */
+export function anchorGroup(source: string, anchor: string): [number, number] | null {
+  const lits = literalsOf(source, anchor);
+  if (lits.length !== 1) return null;
+  const at = lits[0].index;
+  const script = scriptAround(source, at);
+  if (!script) return null;
+  let best: [number, number] | null = null;
+  for (const [open, close] of brackets(source, script[0], script[1])) {
+    if (open < at && close > at && (!best || close - open < best[1] - best[0])) best = [open, close];
+  }
+  return best;
+}
+
+function scriptAround(source: string, index: number): [number, number] | null {
+  const lower = source.toLowerCase();
+  const start = lower.lastIndexOf('<script', index);
+  if (start === -1 || lower.lastIndexOf('</script', index) > start) return null;
+  const open = source.indexOf('>', start);
+  const end = lower.indexOf('</script', index);
+  return open === -1 ? null : [open + 1, end === -1 ? source.length : end];
+}
+
+/** Matching bracket pairs in a script, skipping strings and comments. */
+function brackets(src: string, from: number, to: number): [number, number][] {
+  const pairs: [number, number][] = [];
+  const stack: number[] = [];
+  for (let i = from; i < to; i++) {
+    const c = src[i];
+    if (c === '"' || c === "'" || c === '`') {
+      for (i++; i < to && src[i] !== c; i++) if (src[i] === '\\') i++;
+    } else if (c === '/' && src[i + 1] === '/') {
+      while (i < to && src[i] !== '\n') i++;
+    } else if (c === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      i = end === -1 ? to : end + 1;
+    } else if (c === '{' || c === '[') stack.push(i);
+    else if ((c === '}' || c === ']') && stack.length) pairs.push([stack.pop()!, i]);
+  }
+  return pairs;
+}
+
 export function applySwaps(source: string, swaps: TextSwap[]): string {
   let out = source;
   for (const s of swaps) {
-    const f = findText(out, s.from);
+    const f = findText(out, s.from, s.anchor);
     if (f) out = out.slice(0, f.index) + f.write(s.to) + out.slice(f.index + f.length);
   }
   return out;

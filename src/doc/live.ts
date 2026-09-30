@@ -11,7 +11,7 @@
  * The rules live in the style element's single text node, and the swaps in
  * one of its attributes, so undo/redo (which records DOM changes) covers them.
  */
-import { EDITS_ID, applySwaps, findText, saveLiveFile, type TextSwap } from './livefile';
+import { EDITS_ID, applySwaps, findText, literalCount, saveLiveFile, type TextSwap } from './livefile';
 
 const registry = new WeakMap<Document, LiveEdits>();
 
@@ -199,23 +199,31 @@ export class LiveEdits {
     this.style.setAttribute(SWAPS_ATTR, JSON.stringify(list));
   }
 
-  /** Can this element's words be changed, i.e. are they written exactly once in the file? */
-  canEditText(el: Element): string | null {
-    if (el.children.length > 0) return 'This has styled parts. Select the part with the words you want to change.';
+  /**
+   * Can this element's words be changed, and where are they in the file?
+   * Returns a reason when not; otherwise the anchor that finds them (see TextSwap).
+   */
+  checkText(el: Element): string | { anchor?: string } {
+    const own = Array.from(el.children).find((c) => (c.textContent ?? '').trim());
+    if (own) {
+      return 'The words here are split into separately styled pieces (like a bold word inside a sentence). Double-click right on the piece you want to change.';
+    }
     const text = (el.textContent ?? '').trim();
-    if (this.continuing(el, text)) return null;
-    if (findText(applySwaps(this.source, this.swaps()), text)) return null;
-    return `“${short(text)}” is written more than once in the page's code (or built from pieces), so Tweakerr can't tell which one to change.`;
-  }
-
-  /** Is this the text we just changed on this same element? Then keep editing that swap. */
-  private continuing(el: Element, text: string): boolean {
     const last = this.swaps().at(-1);
-    return !!last && this.lastTextEl === el && last.to === text;
+    if (last && this.lastTextEl === el && last.to === text) return { anchor: last.anchor };
+    const source = applySwaps(this.source, this.swaps());
+    if (findText(source, text)) return {};
+    for (const anchor of anchorsFor(el, text)) {
+      if (findText(source, text, anchor)) return { anchor };
+    }
+    const n = literalCount(source, text);
+    return n > 1
+      ? `“${short(text)}” is written ${n} times in the page's code, and Tweakerr couldn't work out which one belongs to this item, so it can't change it here.`
+      : `“${short(text)}” is put together by the page's code, not written out in one piece, so Tweakerr can't change it here.`;
   }
 
   /** Record that an element's words changed from `from` to `to`. Call inside an edit. */
-  recordText(el: Element, from: string, to: string): void {
+  recordText(el: Element, from: string, to: string, anchor?: string): void {
     const a = from.trim();
     const b = to.trim();
     if (a === b) return;
@@ -225,7 +233,7 @@ export class LiveEdits {
       last.to = b;
       if (last.from === last.to) list.pop();
     } else {
-      list.push({ from: a, to: b });
+      list.push(anchor ? { from: a, to: b, anchor } : { from: a, to: b });
     }
     this.lastTextEl = el;
     this.setSwaps(list);
@@ -240,7 +248,10 @@ export class LiveEdits {
       const parent = n.parentElement?.localName;
       if (parent === 'script' || parent === 'style') continue;
       for (const s of swaps) {
-        if (n.data.trim() === s.from) n.data = n.data.replace(s.from, s.to);
+        if (n.data.trim() !== s.from) continue;
+        // Words written for one item ("HR" on the Employee data card) change only there.
+        if (s.anchor && !itemOf(n.parentElement).some((e) => (e.textContent ?? '').includes(s.anchor!))) continue;
+        n.data = n.data.replace(s.from, s.to);
       }
     }
   }
@@ -250,6 +261,30 @@ export class LiveEdits {
   save(): string {
     return saveLiveFile(this.source, this.rules(), this.swaps());
   }
+}
+
+/** The element and a few ancestors: the item (card) the words belong to. */
+function itemOf(el: Element | null, levels = 4): Element[] {
+  const out: Element[] = [];
+  for (let e = el; e && out.length <= levels && e.localName !== 'body'; e = e.parentElement) out.push(e);
+  return out;
+}
+
+/** Other words of the same item, nearest first ("Employee data" next to "HR"). */
+function anchorsFor(el: Element, text: string): string[] {
+  const seen = new Set<string>([text]);
+  const out: string[] = [];
+  for (const item of itemOf(el.parentElement)) {
+    const walker = item.ownerDocument.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const t = (n.textContent ?? '').trim();
+      if (t.length < 2 || seen.has(t) || el.contains(n)) continue;
+      seen.add(t);
+      out.push(t);
+    }
+    if (out.length >= 12) break;
+  }
+  return out;
 }
 
 function short(s: string): string {

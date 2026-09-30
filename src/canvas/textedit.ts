@@ -14,6 +14,7 @@ export class TextEditor {
   active: HTMLElement | null = null;
   private previousAttr: string | null = null;
   private startText = '';
+  private anchor: string | undefined;
   private cleanup: (() => void) | null = null;
 
   constructor(
@@ -37,12 +38,12 @@ export class TextEditor {
     if (!doc || !this.editor.history || !isTextEditable(el) || el.namespaceURI !== XHTML) return false;
     this.commit();
     // A live page's words are saved by changing them where the file writes them.
-    const live = this.editor.live;
-    const refused = live?.canEditText(el);
-    if (refused) {
-      this.editor.notify(refused);
+    const check = this.editor.live?.checkText(el);
+    if (typeof check === 'string') {
+      this.editor.notify(check);
       return false;
     }
+    this.anchor = check?.anchor;
     this.startText = el.textContent ?? '';
 
     const html = el as HTMLElement;
@@ -89,7 +90,7 @@ export class TextEditor {
     this.active = null;
     this.cleanup?.();
     this.cleanup = null;
-    this.editor.live?.recordText(el, this.startText, el.textContent ?? '');
+    this.editor.live?.recordText(el, this.startText, el.textContent ?? '', this.anchor);
     this.editor.history?.end();
     if (this.previousAttr === null) el.removeAttribute('contenteditable');
     else el.setAttribute('contenteditable', this.previousAttr);

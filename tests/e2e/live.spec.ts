@@ -61,7 +61,9 @@ test('moving a box saves its new place, and the code redraws its arrows', async 
   const x2 = () => inPage(page, (d) => Number(d.getElementById('wire-quote-order')!.getAttribute('x2')));
   const before = await x2();
   const zoom = await page.evaluate(() => (window as any).tweakerr.editor.zoom);
-  await drag(page, await pointIn(page, '#step-order', 0.5, 0.2), 40 * zoom, 60 * zoom, { hold: () => page.keyboard.down('Alt') });
+  await select(page, '#step-order');
+  await page.keyboard.down('Alt'); // no snapping, so the move is exact
+  await drag(page, await pointIn(page, '#step-order', 0.5, 0.2), 40 * zoom, 60 * zoom);
   await page.keyboard.up('Alt');
 
   await expect.poll(x2).toBeCloseTo(before + 40, 0);
@@ -86,11 +88,28 @@ test('editing words changes them where the code writes them', async ({ page }) =
   await page.evaluate(() => (window as any).tweakerr.editor.doc.defaultView.dispatchEvent(new Event('resize')));
   expect(await inPage(page, (d) => d.querySelector('#step-invoice h2')!.textContent)).toBe('Billing');
 
-  // Words written twice in the code can't be matched to one place: refused, with a reason.
-  const q = await pointIn(page, '#step-cash p', 0.5, 0.5);
+  // Words built from pieces by the code can't be matched to one place: refused, with a reason.
+  const q = await pointIn(page, '.legend span', 0.5, 0.5);
   await page.mouse.dblclick(q.x, q.y);
-  await expect(page.locator('.toast', { hasText: 'written more than once' })).toBeVisible();
-  expect(await inPage(page, (d) => d.querySelector('#step-cash p')!.hasAttribute('contenteditable'))).toBe(false);
+  await expect(page.locator('.toast', { hasText: 'put together by the page' })).toBeVisible();
+  expect(await inPage(page, (d) => d.querySelector('.legend span')!.hasAttribute('contenteditable'))).toBe(false);
+});
+
+test('words written several times change only for the item clicked', async ({ page }) => {
+  // "Finance" is the team of two cards, next to a dot. Change it on the Cash card only.
+  const p = await pointIn(page, '#step-cash .team', 0.8, 0.5);
+  await page.mouse.dblclick(p.x, p.y);
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+Home');
+  await page.keyboard.type('Treasury');
+  await page.keyboard.press('Escape');
+
+  const saved = await saveViaDownload(page);
+  expect(saved).toBe(ORIGINAL.replace("note: 'Finance sends it', team: 'Finance', x: 520, y: 240", "note: 'Finance sends it', team: 'Treasury', x: 520, y: 240"));
+
+  // After a redraw only the Cash card shows the new words.
+  await page.evaluate(() => (window as any).tweakerr.editor.doc.defaultView.dispatchEvent(new Event('resize')));
+  expect(await inPage(page, (d) => [d.querySelector('#step-invoice .team')!.textContent, d.querySelector('#step-cash .team')!.textContent])).toEqual(['Finance', 'Treasury']);
 });
 
 test('undo and redo a live change', async ({ page }) => {

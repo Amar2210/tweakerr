@@ -17,7 +17,8 @@ const PROBE = [
 type Gesture =
   | { kind: 'pending'; x: number; y: number; el: Element; hit: Element }
   | { kind: 'move'; x: number; y: number; movers: Mover[]; start: Box; targets: Box[] }
-  | { kind: 'resize'; x: number; y: number; resizer: NonNullable<ReturnType<typeof createResizer>> };
+  | { kind: 'resize'; x: number; y: number; resizer: NonNullable<ReturnType<typeof createResizer>> }
+  | { kind: 'scrollbar'; x: number; y: number; el: Element; axis: 'x' | 'y'; start: number; ratio: number };
 
 /** Mouse interaction on the glass sheet: hover, select, drag, resize, double-click. */
 export class Pointer {
@@ -74,6 +75,13 @@ export class Pointer {
     const z = this.stage.zoom;
     let dx = (e.clientX - g.x) / z;
     let dy = (e.clientY - g.y) / z;
+
+    if (g.kind === 'scrollbar') {
+      const d = (g.axis === 'x' ? dx : dy) * g.ratio;
+      if (g.axis === 'x') g.el.scrollLeft = g.start + d;
+      else g.el.scrollTop = g.start + d;
+      return;
+    }
 
     if (g.kind === 'pending') {
       if (Math.hypot(dx * z, dy * z) < DRAG_THRESHOLD) return;
@@ -136,6 +144,14 @@ export class Pointer {
       return;
     }
 
+    const bar = this.scrollbarAt(e.clientX, e.clientY);
+    if (bar) {
+      e.preventDefault();
+      root.setPointerCapture(e.pointerId);
+      this.gesture = bar;
+      return;
+    }
+
     const hit = this.hitTest(e.clientX, e.clientY);
     if (!hit) return;
     e.preventDefault();
@@ -166,6 +182,7 @@ export class Pointer {
       if (g.hit !== g.el || this.editor.multi) this.editor.select(g.hit);
       return;
     }
+    if (g.kind === 'scrollbar') return;
     this.overlay.setGuides([]);
     this.editor.history?.end();
     this.editor.setBusy(null);
@@ -184,22 +201,60 @@ export class Pointer {
       this.stage.setZoom(this.editor.zoom * Math.exp(-e.deltaY * 0.002), e);
       return;
     }
-    // Let scrollable boxes inside the page scroll; otherwise the canvas scrolls.
-    const hit = this.hitTest(e.clientX, e.clientY);
+    // Let scrollable boxes inside the page scroll (either way); otherwise the canvas scrolls.
+    // Shift+wheel scrolls sideways, as it does in a browser.
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+    let dx = e.deltaX * unit;
+    let dy = e.deltaY * unit;
+    if (e.shiftKey && !dx) [dx, dy] = [dy, 0];
+    const z = this.stage.zoom;
     const win = this.editor.win;
-    for (let el = hit; el && win; el = el.parentElement) {
+    for (let el = this.hitTest(e.clientX, e.clientY); el && win; el = el.parentElement) {
       if (el === this.editor.doc?.body || el === this.editor.doc?.documentElement) break;
-      const oy = win.getComputedStyle(el).overflowY;
-      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 1) {
-        const atTop = el.scrollTop <= 0 && e.deltaY < 0;
-        const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 1 && e.deltaY > 0;
-        if (!atTop && !atEnd) {
-          e.preventDefault();
-          el.scrollTop += e.deltaY;
-          return;
-        }
+      const cs = win.getComputedStyle(el);
+      const sx = canScroll(cs.overflowX, el.scrollLeft, el.clientWidth, el.scrollWidth, dx) ? dx : 0;
+      const sy = canScroll(cs.overflowY, el.scrollTop, el.clientHeight, el.scrollHeight, dy) ? dy : 0;
+      if (sx || sy) {
+        e.preventDefault();
+        // Divide by zoom so the content moves as far on screen as the wheel asked.
+        el.scrollBy({ left: sx / z, top: sy / z, behavior: 'instant' });
+        return;
       }
     }
+  }
+
+  /**
+   * Is the press on a scrollbar of a scrollable box inside the page? Then
+   * drag it (the glass overlay would otherwise take the press as a select).
+   */
+  private scrollbarAt(clientX: number, clientY: number): Gesture | null {
+    const hit = this.hitTest(clientX, clientY);
+    const win = this.editor.win;
+    if (!hit || !win || isStructural(hit)) return null;
+    const cs = win.getComputedStyle(hit);
+    const { x, y } = this.stage.toDoc(clientX, clientY);
+    const r = hit.getBoundingClientRect();
+    const inner = { left: r.left + hit.clientLeft, top: r.top + hit.clientTop };
+    const scrollsX = /auto|scroll/.test(cs.overflowX) && hit.scrollWidth > hit.clientWidth;
+    const scrollsY = /auto|scroll/.test(cs.overflowY) && hit.scrollHeight > hit.clientHeight;
+    // The bar sits between the padding box and the border.
+    const onBottomBar = scrollsX && y > inner.top + hit.clientHeight && y < r.bottom - (parseFloat(cs.borderBottomWidth) || 0);
+    const onRightBar = scrollsY && x > inner.left + hit.clientWidth && x < r.right - (parseFloat(cs.borderRightWidth) || 0);
+    if (!onBottomBar && !onRightBar) return null;
+    const axis = onBottomBar ? 'x' : 'y';
+    const track = axis === 'x' ? hit.clientWidth : hit.clientHeight;
+    const total = axis === 'x' ? hit.scrollWidth : hit.scrollHeight;
+    const at = axis === 'x' ? x - inner.left : y - inner.top;
+    // Pressed beside the thumb: jump there first, like a browser does.
+    const thumb = (track * track) / total;
+    const pos = axis === 'x' ? hit.scrollLeft : hit.scrollTop;
+    const thumbStart = (pos / total) * track;
+    if (at < thumbStart || at > thumbStart + thumb) {
+      const to = ((at - thumb / 2) / track) * total;
+      if (axis === 'x') hit.scrollLeft = to;
+      else hit.scrollTop = to;
+    }
+    return { kind: 'scrollbar', x: clientX, y: clientY, el: hit, axis, start: axis === 'x' ? hit.scrollLeft : hit.scrollTop, ratio: total / track };
   }
 
   /** The selected element that is, or contains, `hit` (page-level ones don't count). */
@@ -232,4 +287,10 @@ export class Pointer {
     }
     return boxes;
   }
+}
+
+/** Can a box with this overflow and scroll position scroll by `delta`? */
+function canScroll(overflow: string, pos: number, size: number, total: number, delta: number): boolean {
+  if (!delta || !/auto|scroll/.test(overflow) || total <= size + 1) return false;
+  return delta < 0 ? pos > 0 : pos + size < total - 1;
 }

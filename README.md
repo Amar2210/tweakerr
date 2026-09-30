@@ -74,8 +74,9 @@ When the page opens, the script draws everything as usual, and these rules resty
 | On a live page | |
 |---|---|
 | **Works** | Colours, gradients, borders, fonts, sizes, spacing, opacity, arrow colours. Moving and resizing boxes. If the page redraws its arrows when the window changes size, they follow the boxes you move. |
-| **Text** | Double-click to change words. Tweakerr changes them where the code writes them (`title: 'Invoice'` becomes `title: 'Billing'`). If the same words appear more than once in the code, or are built from pieces, it can't tell which one to change and says so. |
+| **Text** | Double-click to change words. Tweakerr changes them where the code writes them (`title: 'Invoice'` becomes `title: 'Billing'`). When the same words are written for several items (`team: "HR"` on three cards), it changes the one written next to the clicked card's other words, such as its title. If it still can't tell, or the words are put together by the code, it says so. |
 | **Delete** | Hides the item, because the code would just draw it again. |
+| **Scrolling** | Boxes that scroll inside the page (a wide board, say) scroll with the wheel, Shift+wheel or a sideways swipe, and their scrollbars can be dragged. This works on every page. |
 | **Not available** | Duplicating, dragging the two ends of a line separately, and link/image fields. |
 
 A thing the code draws without an id is found by its position ("the 14th item in the grid"), and the panel tells you so. If you later change the code so that its items come in a different order, such a change can land on a different item.
