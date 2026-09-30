@@ -31,6 +31,8 @@ src/canvas/
   overlay.ts           glass layer on top: hover/selection boxes, handles, guides
   pointer.ts           mouse: select, drag (with snapping), resize, double-click
   transform.ts         how each kind of element moves and resizes
+  arrow.ts             arrow dots: move an end, bend the middle (live pages: a `d` rule)
+  magnet.ts            an arrow end snaps onto the nearest box edge
   textedit.ts          typing in place
 src/doc/
   history.ts           undo/redo, recorded with a MutationObserver
@@ -42,15 +44,17 @@ src/doc/
   actions.ts           delete, duplicate, hide, nudge, select parent/child/siblings
   similar.ts           "select all like this": same type, same colour
   kinds.ts, palette.ts helpers: what kind of element, page colours/fonts
+  keys.ts              a stable id per element (merges edits; kept across live redraws)
 src/panel/             properties panel (controls + per-element sections), layers
 src/io/files.ts        File System Access API with input/download fallbacks
+src/util/path.ts       SVG path data: parse, move an end, bend, straighten
 ```
 
 The page being edited is loaded into an `<iframe sandbox="allow-same-origin">` via `srcdoc`. Without `allow-scripts`, the page's scripts never run. `allow-same-origin` still lets the editor read and change its DOM directly.
 
 **Live pages.** If the page has scripts, `Stage.mount` first loads it with `allow-scripts`, waits for it to settle, and compares it with the page as written (`drawsItself`). If the scripts drew a real part of it, the page stays live: a `LiveEdits` (src/doc/live.ts) is attached. Otherwise it's reloaded with scripts off.
 
-On a live page, `setStyle`/`setAttr` write into one `<style id="tweakerr-edits">` instead of inline styles. Each element gets a rule keyed by a selector: its id, else a `data-id`-like attribute, else an `:nth-child` path from the nearest ancestor with one. All rules are `!important`, because page code often sets inline styles. The rules live in the style element's single text node, and text swaps in one of its attributes, so history records them like any other DOM change. Saving (`livefile.ts`) writes the original file text plus that block, with swaps applied; the DOM is never serialised. HTML boxes move with `left`/`top` rather than `translate`, because connector code often measures with `offsetLeft`. After such a change, `watchPage` fires a `resize` so the page can redraw, then finds the selection again by selector.
+On a live page, `setStyle`/`setAttr` write into one `<style id="tweakerr-edits">` instead of inline styles. Each element gets a rule keyed by a selector: its id, else a `data-id`-like attribute, else an `:nth-child` path from the nearest ancestor with one. All rules are `!important`, because page code often sets inline styles. The rules live in the style element's single text node, and text swaps in one of its attributes, so history records them like any other DOM change. Saving (`livefile.ts`) writes the original file text plus that block, with swaps applied; the DOM is never serialised. HTML boxes move with `left`/`top` rather than `translate`, because connector code often measures with `offsetLeft`. After such a change, `watchPage` fires a `resize` so the page can redraw, then finds the selection again by selector. Code that redraws often replaces its elements, so anything holding an old copy goes through `LiveEdits.relocate` (`computed()` and the selection do this) to reach the one on the page. A reshaped arrow on a live page is a `d: path("…")` rule, which also applies to the copies the code draws later.
 
 ## Rules that keep saved files clean
 

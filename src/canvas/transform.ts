@@ -110,10 +110,7 @@ export function createResizer(el: Element, handle: string): Resizer | null {
       return radiusResizer(el, handle, ['r']);
     case 'ellipse':
       return radiusResizer(el, handle, ['rx', 'ry']);
-    case 'line':
-      // Line ends have no CSS twin, so a live page can't save them.
-      return liveFor(el.ownerDocument) ? null : lineResizer(el as SVGLineElement, handle);
-    default:
+    default: // lines and paths: see arrow.ts
       return null;
   }
 }
@@ -230,21 +227,6 @@ function radiusResizer(el: Element, handle: string, attrs: ['r'] | ['rx', 'ry'])
         setAttr(el, 'rx', String(r2(rx)));
         setAttr(el, 'ry', String(r2(ry)));
       }
-    },
-  };
-}
-
-function lineResizer(el: SVGLineElement, handle: string): Resizer | null {
-  const conv = toUser(el);
-  if (!conv) return null;
-  const [ax, ay] = handle === 'p1' ? ['x1', 'y1'] : ['x2', 'y2'];
-  const x0 = num(el, ax);
-  const y0 = num(el, ay);
-  return {
-    resize(dx, dy) {
-      const [ux, uy] = conv(dx, dy);
-      setAttr(el, ax, String(r2(x0 + ux)));
-      setAttr(el, ay, String(r2(y0 + uy)));
     },
   };
 }

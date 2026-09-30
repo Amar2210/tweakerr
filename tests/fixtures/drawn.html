@@ -62,6 +62,18 @@
       line.setAttribute('marker-end', 'url(#tip)');
       wires.appendChild(line);
     }
+    // One curved arrow, drawn as a path: from cash back round to quote.
+    const q = document.getElementById('step-quote').getBoundingClientRect();
+    const k = document.getElementById('step-cash').getBoundingClientRect();
+    const loop = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    loop.id = 'wire-loop';
+    const sx = k.left - b.left, sy = k.top + k.height / 2 - b.top, ex = q.left + q.width / 2 - b.left, ey = q.bottom - b.top;
+    loop.setAttribute('d', 'M' + sx + ',' + sy + ' C' + (sx - 200) + ',' + sy + ' ' + ex + ',' + (ey + 150) + ' ' + ex + ',' + ey);
+    loop.setAttribute('fill', 'none');
+    loop.setAttribute('stroke', '#999');
+    loop.setAttribute('stroke-width', '2');
+    loop.setAttribute('marker-end', 'url(#tip)');
+    wires.appendChild(loop);
   }
   drawWires();
   addEventListener('resize', drawWires);

@@ -1,6 +1,8 @@
 import type { Editor } from '../editor';
 import { isStructural, isSvg, isTextEditable } from '../doc/kinds';
 import { snapBox, type Box } from '../util/geometry';
+import { arrowResizer, isArrow, type ArrowHandle, type ArrowResizer } from './arrow';
+import { magnetSnap, magnetTargets, type MagnetTarget } from './magnet';
 import type { Overlay } from './overlay';
 import type { Stage } from './stage';
 import type { TextEditor } from './textedit';
@@ -8,6 +10,8 @@ import { createMover, createResizer, type Mover } from './transform';
 
 const DRAG_THRESHOLD = 3;
 const SNAP_PX = 6;
+/** How close (screen px) an arrow end must come to a box edge to snap onto it. */
+const MAGNET_PX = 10;
 /** Offsets probed around the cursor so hairline SVG arrows are easy to click. */
 const PROBE = [
   [0, -4], [4, 0], [0, 4], [-4, 0], [3, 3], [-3, 3], [3, -3], [-3, -3],
@@ -18,6 +22,7 @@ type Gesture =
   | { kind: 'pending'; x: number; y: number; el: Element; hit: Element }
   | { kind: 'move'; x: number; y: number; movers: Mover[]; start: Box; targets: Box[] }
   | { kind: 'resize'; x: number; y: number; resizer: NonNullable<ReturnType<typeof createResizer>> }
+  | { kind: 'arrow'; x: number; y: number; resizer: ArrowResizer; targets: MagnetTarget[] }
   | { kind: 'scrollbar'; x: number; y: number; el: Element; axis: 'x' | 'y'; start: number; ratio: number };
 
 /** Mouse interaction on the glass sheet: hover, select, drag, resize, double-click. */
@@ -119,6 +124,20 @@ export class Pointer {
       return;
     }
 
+    if (g.kind === 'arrow') {
+      const snap = g.resizer.magnet && !e.altKey
+        ? magnetSnap({ x: g.resizer.start.x + dx, y: g.resizer.start.y + dy }, g.targets, MAGNET_PX / z)
+        : null;
+      if (snap) {
+        dx = snap.point.x - g.resizer.start.x;
+        dy = snap.point.y - g.resizer.start.y;
+      }
+      this.overlay.setSnap(snap?.target.box ?? null, snap?.point);
+      g.resizer.resize(dx, dy);
+      this.editor.emit('change');
+      return;
+    }
+
     g.resizer.resize(dx, dy, e.shiftKey);
     this.editor.emit('change');
   }
@@ -131,6 +150,24 @@ export class Pointer {
     this.stage.canvas.focus({ preventScroll: true });
     const handle = (e.target as HTMLElement).closest<HTMLElement>('[data-handle]');
     const sel = this.editor.selected;
+
+    const name = handle?.dataset.handle;
+    if (handle && sel && isArrow(sel) && (name === 'p1' || name === 'p2' || name === 'mid')) {
+      e.preventDefault();
+      // Begin first: bending a straight <line> replaces it with a <path>.
+      this.editor.history?.begin(name === 'mid' ? 'Bend arrow' : 'Move arrow end');
+      const resizer = arrowResizer(sel, name as ArrowHandle);
+      if (!resizer) {
+        this.editor.history?.end();
+        return;
+      }
+      if (resizer.replaced) this.editor.setSelection([resizer.replaced]);
+      root.setPointerCapture(e.pointerId);
+      this.editor.setBusy('resize');
+      const targets = resizer.magnet ? magnetTargets(this.editor.doc, resizer.replaced ?? sel) : [];
+      this.gesture = { kind: 'arrow', x: e.clientX, y: e.clientY, resizer, targets };
+      return;
+    }
 
     if (handle && sel) {
       const resizer = createResizer(sel, handle.dataset.handle!);
@@ -184,6 +221,7 @@ export class Pointer {
     }
     if (g.kind === 'scrollbar') return;
     this.overlay.setGuides([]);
+    this.overlay.setSnap(null);
     this.editor.history?.end();
     this.editor.setBusy(null);
   }

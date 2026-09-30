@@ -39,11 +39,12 @@ In Chrome and Edge, Ctrl+S writes straight back to the file you opened (the brow
 | **Select all like this** | With something selected, the panel offers **Same type** (every `div.card`, including `card done` and `card risk`, or every arrow) and **Same colour** (everything with this fill, border, stroke or text colour). One click selects them all. |
 | **Edit them together** | With several selected, every change in the panel applies to all of them, and dragging, arrow keys, delete, duplicate and hide act on the whole group. It's still one undo step. |
 | **Move** | Drag it. It snaps into line with its neighbours (pink guides). **Shift** keeps it in a straight line, **Alt** turns snapping off, and **arrow keys** nudge by 1px (**Shift** for 10px). |
-| **Resize** | Drag the handles. **Shift** keeps the proportions. Works on boxes, SVG rectangles, circles and ellipses, and on the two ends of SVG lines. |
+| **Resize** | Drag the handles. **Shift** keeps the proportions. Works on boxes, SVG rectangles, circles and ellipses. |
 | **Colours** | Text, background, border, SVG fill and stroke. The picker offers the colours your page already uses. |
 | **Gradients** | A gradient background gets its own editor: one colour per stop, the angle, and linear/radial/conic. Add or remove colours, remove the gradient, or turn a plain fill into one with **Make it a gradient**. |
 | **Borders** | Width, style (solid, dashed, dotted…), colour and corner radius. A box with lines on only some sides (a grid cell's right and bottom) becomes one even frame when you change its style. |
 | **Arrows** | Line colour, width, dashes and line ends, plus the **arrowhead colour**. When several arrows share one arrowhead, Tweakerr copies it for the arrows you change, so the others stay as they were. If you've selected every arrow that uses it, it's recoloured in place. |
+| **Reshape arrows** | A selected arrow (an SVG line or curve) shows three dots. Drag the **tail** or **head** dot to reconnect it: near a box it snaps onto the box's edge, most readily the middle of a side (**Alt** turns the magnet off). Drag the **middle** dot to bend it into a curve; drag it back near the straight line and it snaps straight. |
 | **Text** | Double-click to type in place. Also size, weight, alignment, bold, italic, underline and uppercase. |
 | **Fonts** | The font field shows a single name. Its list offers the fonts your page uses, common fonts found on most computers, and CSS's basic kinds, each drawn in its own typeface. Tweakerr adds a matching fallback (e.g. `Georgia, serif`) so the text still looks right on machines without the font. |
 | **Effects** | Opacity, shadow and layer order (z-index). |
@@ -74,11 +75,11 @@ When the page opens, the script draws everything as usual, and these rules resty
 
 | On a live page | |
 |---|---|
-| **Works** | Colours, gradients, borders, fonts, sizes, spacing, opacity, arrow colours. Moving and resizing boxes. If the page redraws its arrows when the window changes size, they follow the boxes you move. |
+| **Works** | Colours, gradients, borders, fonts, sizes, spacing, opacity, arrow colours. Moving and resizing boxes. If the page redraws its arrows when the window changes size, they follow the boxes you move. Curved arrows (SVG paths) can be reshaped with their dots: the new shape is kept as a style rule, so the arrow stays as you drew it and stops following its boxes, until you press **Reset shape**. |
 | **Text** | Double-click to change words. Tweakerr changes them where the code writes them (`title: 'Invoice'` becomes `title: 'Billing'`). When the same words are written for several items (`team: "HR"` on three cards), it changes the one written next to the clicked card's other words, such as its title. If it still can't tell, or the words are put together by the code, it says so. |
 | **Delete** | Hides the item, because the code would just draw it again. |
 | **Scrolling** | Boxes that scroll inside the page (a wide board, say) scroll with the wheel, Shift+wheel or a sideways swipe, and their scrollbars can be dragged. This works on every page. |
-| **Not available** | Duplicating, dragging the two ends of a line separately, and link/image fields. |
+| **Not available** | Duplicating, reshaping straight `<line>` arrows (their ends can't be kept as a style rule; they still move as a whole), and link/image fields. Reshaped arrows show their original shape in Safari, which doesn't support the `d` style rule. |
 
 A thing the code draws without an id is found by its position ("the 14th item in the grid"), and the panel tells you so. If you later change the code so that its items come in a different order, such a change can land on a different item.
 

@@ -5,6 +5,7 @@ import { ensureGroupMarker, followsLine, markerColor, markerOf, type MarkerEnd, 
 import { COMMON_FONTS, GENERIC_FONTS, pageFamilies, primaryFamily, stackFor } from '../doc/fonts';
 import { collectFonts, collectPalette } from '../doc/palette';
 import { computed, inlineStyle, setAttr, setStyle } from '../doc/style';
+import { hasSavedShape, isArrow } from '../canvas/arrow';
 import { formatColor, resolveColor } from '../util/color';
 import { addSvgTranslate, formatCssTranslate, parseCssTranslate, r2, readSvgTranslate } from '../util/geometry';
 import { prepareOffset } from '../canvas/transform';
@@ -615,6 +616,16 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
     case 'foreignObject':
       geo.push(nums(['x', 'y', 'width', 'height']));
       break;
+  }
+  if (!multi && isArrow(el)) {
+    if (hasSavedShape(el)) {
+      geo.push(noteControl("You've reshaped this arrow, so it stays as you drew it and no longer follows its boxes when they move.", {
+        label: 'Reset shape',
+        run: () => editor.edit('Reset arrow shape', () => setStyle(el, 'd', '')),
+      }));
+    } else {
+      geo.push(noteControl('Drag the dots on its ends to reconnect it (they snap onto boxes), or the middle dot to bend it.'));
+    }
   }
   sections.push({ title: 'Position', controls: geo });
 

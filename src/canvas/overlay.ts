@@ -1,7 +1,9 @@
 import type { Editor } from '../editor';
 import { describe, resizeKind } from '../doc/kinds';
-import type { Guide } from '../util/geometry';
+import type { Box, Guide } from '../util/geometry';
 import { h } from '../util/dom';
+import type { Point } from '../util/path';
+import { arrowHandles, isArrow } from './arrow';
 import type { Stage } from './stage';
 
 const BOX_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
@@ -19,6 +21,9 @@ export class Overlay {
   private label = h('div', { class: 'ov-label' });
   private handles = h('div', { class: 'ov-handles' });
   private guides = h('div', { class: 'ov-guides' });
+  /** The box an arrow end is snapping to, and the point on its edge. */
+  private snapBox = h('div', { class: 'ov-snap' });
+  private snapDot = h('div', { class: 'ov-snap-dot' });
   private queued = false;
   private guideList: Guide[] = [];
 
@@ -27,7 +32,8 @@ export class Overlay {
     private stage: Stage,
     readonly root: HTMLElement,
   ) {
-    root.append(this.hoverBox, this.groupBoxes, this.selBox, this.handles, this.guides, this.label);
+    root.append(this.hoverBox, this.groupBoxes, this.selBox, this.snapBox, this.handles, this.guides, this.snapDot, this.label);
+    this.snapBox.hidden = this.snapDot.hidden = true;
     for (const ev of ['selection', 'hover', 'change', 'redraw', 'layout', 'interaction', 'load'] as const) {
       editor.on(ev, () => this.queue());
     }
@@ -38,6 +44,16 @@ export class Overlay {
   setGuides(guides: Guide[]): void {
     this.guideList = guides;
     this.queue();
+  }
+
+  /** Show (or with null, hide) the magnet's target while an arrow end is dragged. */
+  setSnap(box: Box | null, point?: Point): void {
+    this.snapBox.hidden = this.snapDot.hidden = !box;
+    if (!box || !point) return;
+    place(this.snapBox, this.stage.toStage(box));
+    const z = this.stage.zoom;
+    this.snapDot.style.left = `${point.x * z}px`;
+    this.snapDot.style.top = `${point.y * z}px`;
   }
 
   queue(): void {
@@ -105,20 +121,24 @@ export class Overlay {
   }
 
   private renderHandles(el: Element, box: { left: number; top: number; width: number; height: number }): void {
-    const kind = resizeKind(el);
-    if (kind === 'none') return;
-    if (kind === 'line') {
-      if (this.editor.live) return; // line ends can't be saved on a live page
-      const pts = lineEndpoints(el as SVGLineElement);
-      if (!pts) return;
-      pts.forEach((p, i) => {
-        const hd = h('div', { class: 'ov-handle ov-handle-point', dataset: { handle: i === 0 ? 'p1' : 'p2' } });
+    if (isArrow(el)) {
+      const dots = arrowHandles(el);
+      if (!dots) return;
+      for (const [name, p] of Object.entries(dots)) {
+        const mid = name === 'mid';
+        const hd = h('div', {
+          class: `ov-handle ov-handle-point${mid ? ' ov-handle-mid' : ''}`,
+          title: mid ? 'Drag to bend the arrow' : `Drag to move the ${name === 'p1' ? 'tail' : 'head'} (snaps onto boxes; Alt: no snapping)`,
+          dataset: { handle: name },
+        });
         hd.style.left = `${p.x * this.stage.zoom}px`;
         hd.style.top = `${p.y * this.stage.zoom}px`;
         this.handles.append(hd);
-      });
+      }
       return;
     }
+    const kind = resizeKind(el);
+    if (kind === 'none' || kind === 'line') return;
     for (const pos of BOX_HANDLES) {
       const hd = h('div', { class: `ov-handle ov-h-${pos}`, dataset: { handle: pos } });
       const x = pos.includes('w') ? 0 : pos.includes('e') ? 1 : 0.5;
@@ -135,15 +155,4 @@ function place(el: HTMLElement, b: { left: number; top: number; width: number; h
   el.style.top = `${b.top}px`;
   el.style.width = `${b.width}px`;
   el.style.height = `${b.height}px`;
-}
-
-/** Endpoints of an SVG <line> in page coordinates. */
-export function lineEndpoints(line: SVGLineElement): { x: number; y: number }[] | null {
-  const m = line.getScreenCTM?.();
-  if (!m) return null;
-  const pt = (x: number, y: number) => ({ x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f });
-  return [
-    pt(line.x1.baseVal.value, line.y1.baseVal.value),
-    pt(line.x2.baseVal.value, line.y2.baseVal.value),
-  ];
 }

@@ -1195,6 +1195,39 @@ body:not(.has-doc) .stage {
   background: var(--guide);
 }
 
+/* An arrow's middle dot bends it: filled, so it reads differently from the ends. */
+.ov-handle-mid {
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-color: #fff;
+  cursor: grab;
+}
+
+/* The magnet: the box an arrow end is snapping to, and where on its edge. */
+.ov-snap {
+  position: absolute;
+  outline: 2px dashed var(--guide);
+  outline-offset: 1px;
+  pointer-events: none;
+}
+
+.ov-snap-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--guide);
+  border-radius: 50%;
+  background: #fff;
+  pointer-events: none;
+}
+
+.ov-snap[hidden],
+.ov-snap-dot[hidden] {
+  display: none;
+}
+
 .ov-guide-v {
   width: 1px;
 }
