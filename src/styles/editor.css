@@ -348,8 +348,7 @@ body:not(.has-doc) .zoom-label {
   display: none;
 }
 
-.layers-collapsed .side.left .side-strip,
-.props-collapsed .side.right .side-strip {
+.layers-collapsed .side.left .side-strip {
   display: block;
 }
 
@@ -526,6 +525,43 @@ body:not(.has-doc) .zoom-label {
 
 .icon-btn.danger:hover:not(:disabled) {
   color: var(--danger);
+}
+
+.similar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.similar-label {
+  width: 100%;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.similar-btn {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.similar-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.similar-btn.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .section {

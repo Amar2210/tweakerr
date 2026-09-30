@@ -142,14 +142,14 @@ type Panel = 'layers' | 'props';
 const PANELS = {
   // Arrows point the way the panel slides.
   layers: { name: 'layers', key: 'tweakerr.layersOpen', strip: 'layers', hide: 'panelClose', show: 'panelOpen' },
-  props: { name: 'properties', key: 'tweakerr.propsOpen', strip: 'sliders', hide: 'panelOpen', show: 'panelClose' },
+  props: { name: 'properties', key: 'tweakerr.propsOpen', strip: null, hide: 'panelOpen', show: 'panelClose' },
 } as const;
 
 const isOpen = (panel: Panel) => !$('#app').classList.contains(`${panel}-collapsed`);
 
 /**
  * Show or collapse a side panel; the canvas takes the freed width. Collapsed,
- * it's a thin strip with the arrow and the panel's icon (both open it again).
+ * it's a thin strip with the arrow (plus the layers icon; both open it again).
  */
 function setPanelOpen(panel: Panel, open: boolean): void {
   const p = PANELS[panel];
@@ -168,7 +168,8 @@ function setPanelOpen(panel: Panel, open: boolean): void {
 }
 
 for (const panel of Object.keys(PANELS) as Panel[]) {
-  $(`#${panel}-strip`).replaceChildren(icon(PANELS[panel].strip));
+  const strip = PANELS[panel].strip;
+  if (strip) $(`#${panel}-strip`).replaceChildren(icon(strip));
   setPanelOpen(panel, (() => {
     try {
       return localStorage.getItem(PANELS[panel].key) !== '0';

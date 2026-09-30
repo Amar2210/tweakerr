@@ -97,17 +97,16 @@ test('the layers panel collapses to give the canvas more room, and stays collaps
   expect(await canvasWidth()).toBe(w0);
 });
 
-test('the properties panel collapses too; each strip shows its icon, which opens it again', async ({ page }) => {
+test('the properties panel collapses too; only the layers strip shows an icon', async ({ page }) => {
   await launch(page);
   await openFile(page, 'board.html');
   const canvasWidth = () => page.locator('#canvas').evaluate((el) => el.clientWidth);
   const w0 = await canvasWidth();
 
-  await expect(page.locator('#props-strip')).toBeHidden();
   await page.locator('#props-toggle').click();
   await expect(page.locator('#props')).toBeHidden();
   await expect(page.locator('#props-toggle')).toHaveAttribute('aria-label', 'Show properties');
-  await expect(page.locator('#props-strip svg')).toBeVisible();
+  await expect(page.locator('.side.right svg')).toHaveCount(1); // just the arrow
   expect(await canvasWidth()).toBeGreaterThan(w0 + 200);
 
   await page.locator('#layers-toggle').click();
@@ -115,10 +114,10 @@ test('the properties panel collapses too; each strip shows its icon, which opens
 
   await page.reload();
   await expect(page.locator('#props')).toBeHidden();
-  await page.locator('#props-strip').click();
+  await page.locator('#props-toggle').click();
   await page.locator('#layers-strip').click();
   await expect(page.locator('#props')).toBeVisible();
   await expect(page.locator('#layers')).toBeVisible();
-  await expect(page.locator('#props-strip')).toBeHidden();
+  await expect(page.locator('#layers-strip')).toBeHidden();
   expect(await canvasWidth()).toBe(w0);
 });

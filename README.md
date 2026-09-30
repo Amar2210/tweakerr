@@ -4,7 +4,7 @@
 
 <h1 align="center">Tweakerr</h1>
 
-**Click-to-edit for HTML files.** Open an `.html` page (the kind an AI assistant writes for you), click a box, and change it: border, colours, arrow colour, size, position, opacity, spacing, text. Select several things and change them together. Save, and you get the same file back with just those changes.
+**Click-to-edit for HTML files.** Open an `.html` page (the kind an AI assistant writes for you), click a box, and change it: border, colours, arrow colour, size, position, opacity, spacing, text. Select several things, or "all like this", and change them together. Save, and you get the same file back with just those changes.
 
 No code editor, no asking the AI again for a one-pixel nudge.
 
@@ -34,8 +34,9 @@ In Chrome and Edge, Ctrl+S writes straight back to the file you opened (the brow
 
 | | |
 |---|---|
-| **Select** | Click an element. Click again inside it to go deeper. **Shift+Enter** selects the parent. The layers list on the left shows the whole page. The arrow at the top of each side panel folds it into a thin strip when you want a bigger canvas; click the strip's icon to bring it back. |
+| **Select** | Click an element. Click again inside it to go deeper. **Shift+Enter** selects the parent. The layers list on the left shows the whole page. The arrow at the top of each side panel folds it into a thin strip when you want a bigger canvas; click the arrow again (or the layers icon) to bring it back. |
 | **Select several** | **Shift+click** (or **Ctrl+click**) adds an element or takes it out, on the page or in the layers list. Clicking a card's text adds the whole card, matching what's already selected. **Ctrl+A** adds everything next to the selected element. **Esc** clears. |
+| **Select all like this** | With something selected, the panel offers **Same type** (every `div.card`, including `card done` and `card risk`, or every arrow) and **Same colour** (everything with this fill, border, stroke or text colour). One click selects them all. |
 | **Edit them together** | With several selected, every change in the panel applies to all of them, and dragging, arrow keys, delete, duplicate and hide act on the whole group. It's still one undo step. |
 | **Move** | Drag it. It snaps into line with its neighbours (pink guides). **Shift** keeps it in a straight line, **Alt** turns snapping off, and **arrow keys** nudge by 1px (**Shift** for 10px). |
 | **Resize** | Drag the handles. **Shift** keeps the proportions. Works on boxes, SVG rectangles, circles and ellipses, and on the two ends of SVG lines. |
