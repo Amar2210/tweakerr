@@ -40,7 +40,6 @@ src/doc/
   livefile.ts          saving a live page: original text + edits block + swaps
   markers.ts           SVG arrowheads (copy-on-write for shared markers)
   actions.ts           delete, duplicate, hide, nudge, select parent/child/siblings
-  similar.ts           "select all like this": same type, same colour
   kinds.ts, palette.ts helpers: what kind of element, page colours/fonts
 src/panel/             properties panel (controls + per-element sections), layers
 src/io/files.ts        File System Access API with input/download fallbacks

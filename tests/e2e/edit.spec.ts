@@ -46,7 +46,9 @@ test('opacity slider and shadow preset', async ({ page }) => {
   const out = field(page, 'Opacity', 'Effects').locator('.ctl-slider-out');
   await out.fill('40');
   await out.press('Enter');
-  await field(page, 'Shadow', 'Effects').locator('select').selectOption({ label: 'Medium' });
+  const shadowSelect = field(page, 'Shadow', 'Effects').locator('select');
+  await expect(shadowSelect.locator('option', { hasText: 'Custom' })).toHaveCount(0);
+  await shadowSelect.selectOption({ label: 'Medium' });
   const [opacity, shadow] = await inPage(page, (d) => {
     const s = getComputedStyle(d.getElementById('badge')!);
     return [s.opacity, s.boxShadow];

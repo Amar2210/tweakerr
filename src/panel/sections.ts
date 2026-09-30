@@ -406,7 +406,6 @@ function effectsSection(css: Css): Section {
         set: (v, final) => opacity.set(String(r2(v / 100)), final),
       }),
       selectControl('Shadow', SHADOWS, shadowPreset(css('box-shadow'))),
-      textControl('Custom', css('box-shadow'), { mono: true, placeholder: 'e.g. 0 2px 8px #0003' }),
     ],
   };
 }
@@ -418,7 +417,7 @@ function shadowPreset(bind: Binding<string>): Binding<string> {
       const v = bind.get();
       if (v === 'none') return 'none';
       const norm = normShadow(v);
-      return SHADOWS.find((s) => s.value !== 'none' && normShadow(s.value) === norm)?.value ?? '__custom';
+      return SHADOWS.find((s) => s.value !== 'none' && normShadow(s.value) === norm)?.value ?? '';
     },
     set: bind.set,
   };

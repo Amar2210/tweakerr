@@ -282,15 +282,14 @@ export function selectControl(
   bind: Binding<string>,
 ): Control {
   const sel = h('select', { class: 'ctl-input ctl-select' });
-  const custom = h('option', { text: 'Custom', attrs: { value: '__custom', disabled: '' } });
   for (const o of options) sel.append(h('option', { text: o.label, attrs: { value: o.value } }));
-  sel.append(custom);
   sel.addEventListener('change', () => bind.set(sel.value, true));
   const wrap = row(label, sel);
   const refresh = () => {
     if (busy(wrap)) return;
     const v = bind.get();
-    sel.value = options.some((o) => o.value === v) ? v : '__custom';
+    // A value that isn't in the list (the page's own shadow, say) shows as blank.
+    sel.value = options.some((o) => o.value === v) ? v : '';
   };
   refresh();
   return { el: wrap, refresh };

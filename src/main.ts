@@ -131,36 +131,52 @@ const commands: Record<string, () => void> = {
   'zoom-reset': () => stage.setZoom(1),
   fit: () => stage.fitToWidth(),
   help: () => ($('#help') as HTMLDialogElement).showModal(),
-  'toggle-layers': () => setLayersOpen($('#app').classList.contains('layers-collapsed')),
+  'toggle-layers': () => setPanelOpen('layers', !isOpen('layers')),
+  'toggle-props': () => setPanelOpen('props', !isOpen('props')),
 };
 
-// ------------------------------------------------------------ layers panel
+// ------------------------------------------------------------ side panels
 
-const LAYERS_KEY = 'tweakerr.layersOpen';
+type Panel = 'layers' | 'props';
 
-/** Show or collapse the layers panel; the canvas takes the freed width. */
-function setLayersOpen(open: boolean): void {
-  $('#app').classList.toggle('layers-collapsed', !open);
-  const btn = $('#layers-toggle');
-  const label = open ? 'Hide layers' : 'Show layers';
+const PANELS = {
+  // Arrows point the way the panel slides.
+  layers: { name: 'layers', key: 'tweakerr.layersOpen', strip: 'layers', hide: 'panelClose', show: 'panelOpen' },
+  props: { name: 'properties', key: 'tweakerr.propsOpen', strip: 'sliders', hide: 'panelOpen', show: 'panelClose' },
+} as const;
+
+const isOpen = (panel: Panel) => !$('#app').classList.contains(`${panel}-collapsed`);
+
+/**
+ * Show or collapse a side panel; the canvas takes the freed width. Collapsed,
+ * it's a thin strip with the arrow and the panel's icon (both open it again).
+ */
+function setPanelOpen(panel: Panel, open: boolean): void {
+  const p = PANELS[panel];
+  $('#app').classList.toggle(`${panel}-collapsed`, !open);
+  const btn = $(`#${panel}-toggle`);
+  const label = `${open ? 'Hide' : 'Show'} ${p.name}`;
   btn.title = label;
   btn.setAttribute('aria-label', label);
   btn.setAttribute('aria-expanded', String(open));
-  btn.replaceChildren(icon(open ? 'panelClose' : 'panelOpen'));
+  btn.replaceChildren(icon(open ? p.hide : p.show));
   try {
-    localStorage.setItem(LAYERS_KEY, open ? '1' : '0');
+    localStorage.setItem(p.key, open ? '1' : '0');
   } catch {
     // Storage blocked (private window, file:// policy): just don't remember it.
   }
 }
 
-setLayersOpen((() => {
-  try {
-    return localStorage.getItem(LAYERS_KEY) !== '0';
-  } catch {
-    return true;
-  }
-})());
+for (const panel of Object.keys(PANELS) as Panel[]) {
+  $(`#${panel}-strip`).replaceChildren(icon(PANELS[panel].strip));
+  setPanelOpen(panel, (() => {
+    try {
+      return localStorage.getItem(PANELS[panel].key) !== '0';
+    } catch {
+      return true;
+    }
+  })());
+}
 
 document.addEventListener('click', (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-cmd], [data-device]');

@@ -6,6 +6,12 @@ const selectedIds = (page: Page) => page.evaluate(() => ((window as any).tweaker
 const styleOf = (page: Page, id: string, prop: string) =>
   page.evaluate(([i, p]) => getComputedStyle((window as any).tweakerr.editor.doc.getElementById(i)).getPropertyValue(p), [id, prop] as const);
 
+const selectIds = (page: Page, ids: string[]) =>
+  page.evaluate((list) => {
+    const { editor } = (window as any).tweakerr;
+    editor.setSelection(list.map((i: string) => editor.doc.getElementById(i)));
+  }, ids);
+
 test.beforeEach(async ({ page }) => {
   await launch(page);
   await openFile(page, 'board.html');
@@ -73,25 +79,16 @@ test('dragging one of them moves the whole group as one undo step', async ({ pag
   expect(await styleOf(page, 'box-b', 'translate')).toBe('none');
 });
 
-test('"Same type" selects every card; recolour them all at once', async ({ page }) => {
-  await select(page, '#box-b');
-  const btn = page.locator('.similar-btn', { hasText: 'Same type' });
-  await expect(btn).toHaveText('Same type · 3');
-  await btn.click();
-  expect(await selectedIds(page)).toEqual(['box-a', 'box-b', 'box-c']);
+test('recolour three selected cards at once', async ({ page }) => {
+  await selectIds(page, ['box-a', 'box-c', 'box-b']);
   await expect(page.locator('#layers .layer-row.selected')).toHaveCount(3);
-  await expect(btn).toHaveClass(/on/);
 
   await setField(page, 'Fill', '#fef3c7', 'Fill & border');
   for (const id of ['box-a', 'box-b', 'box-c']) expect(await styleOf(page, id, 'background-color')).toBe('rgb(254, 243, 199)');
 });
 
-test('"Same stroke" finds the arrows of that colour; their shared head is recoloured in place', async ({ page }) => {
-  await select(page, '#arrow-1');
-  const btn = page.locator('.similar-btn', { hasText: 'Same stroke' });
-  await expect(btn).toHaveText('Same stroke · 2');
-  await btn.click();
-  expect(await selectedIds(page)).toEqual(['arrow-1', 'arrow-2']);
+test('two arrows sharing a head: the head is recoloured in place', async ({ page }) => {
+  await selectIds(page, ['arrow-1', 'arrow-2']);
 
   await setField(page, 'Stroke', '#2563eb', 'Shape');
   await setField(page, 'End head', '#2563eb', 'Arrowheads');
@@ -173,15 +170,4 @@ test('boxes and shapes together: only shared settings are offered', async ({ pag
   await out.press('Enter');
   expect(await styleOf(page, 'box-a', 'opacity')).toBe('0.5');
   expect(await styleOf(page, 'node-1', 'opacity')).toBe('0.5');
-});
-
-test('"Same type" matches on the main class, so modifier classes still count', async ({ page }) => {
-  await page.reload();
-  await page.locator('.empty [data-cmd="demo"]').click();
-  await expect(page.locator('#file-name')).toHaveText('tweakerr-demo.html');
-  await page.evaluate(() => {
-    const { editor } = (window as any).tweakerr;
-    editor.select(editor.doc.querySelector('.card.risk'));
-  });
-  await expect(page.locator('.similar-btn', { hasText: 'Same type' })).toHaveText('Same type · 3');
 });

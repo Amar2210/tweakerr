@@ -1,7 +1,6 @@
 import type { Editor } from '../editor';
 import { deleteSelected, duplicateSelected, elementKey, selectParent, toggleHidden } from '../doc/actions';
 import { describe, isStructural } from '../doc/kinds';
-import { sameColour, sameType, type Match } from '../doc/similar';
 import { inlineStyle } from '../doc/style';
 import { h, isTypingTarget } from '../util/dom';
 import { icon, type IconName } from '../util/icons';
@@ -59,8 +58,6 @@ export class PropertiesPanel {
     const el = selected ?? doc.body;
 
     const parts: HTMLElement[] = [this.header(el, !selected)];
-    const similar = selected && !isStructural(selected) ? this.similarRow(selected) : null;
-    if (similar) parts.push(similar);
     const live = this.editor.live;
     if (live && selected && !isStructural(selected) && this.editor.selection.some((e) => live.isFragile(e))) {
       parts.push(h('p', {
@@ -129,25 +126,5 @@ export class PropertiesPanel {
         btn('trash', this.editor.live ? 'Delete (Del) · hides it on a page drawn by code' : 'Delete (Del)', () => deleteSelected(this.editor), { disabled: structural, danger: true }),
       ),
     );
-  }
-
-  /** "Select all like this": same type, and same colour, as the main selected element. */
-  private similarRow(el: Element): HTMLElement | null {
-    const current = new Set(this.editor.selection);
-    const button = (m: Match | null) => {
-      if (!m || m.elements.length < 2) return null;
-      const already = m.elements.length === current.size && m.elements.every((e) => current.has(e));
-      const b = h('button', {
-        class: `similar-btn${already ? ' on' : ''}`,
-        text: `${m.label} · ${m.elements.length}`,
-        title: already ? `All ${m.elements.length} are selected` : `Select all ${m.elements.length} (${m.detail})`,
-        attrs: { type: 'button' },
-        on: { click: () => this.editor.setSelection([...m.elements.filter((e) => e !== el), el]) },
-      });
-      return b;
-    };
-    const buttons = [button(sameType(el)), button(sameColour(el))].filter((b): b is HTMLButtonElement => !!b);
-    if (!buttons.length) return null;
-    return h('div', { class: 'similar' }, h('span', { class: 'similar-label', text: 'Select all like this' }), ...buttons);
   }
 }
