@@ -31,6 +31,7 @@ export class LayersPanel {
     });
     editor.on('hover', () => this.markHover());
     editor.on('change', () => this.queue());
+    editor.on('redraw', () => this.queue());
     editor.on('interaction', () => this.queue());
     this.render();
   }

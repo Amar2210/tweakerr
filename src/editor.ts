@@ -18,8 +18,9 @@ type EventName =
   | 'load' // a new document was mounted
   | 'selection' // selection changed
   | 'hover' // hovered element changed
-  | 'change' // the document was edited, undone or redone, or a live page redrew itself
+  | 'change' // the document was edited, undone or redone
   | 'edited' // the user's edit, undo or redo (not the page redrawing itself)
+  | 'redraw' // a live page's own code redrew part of it
   | 'layout' // page size, zoom or device width changed
   | 'file' // file name / handle / dirty flag changed
   | 'interaction'; // a drag/resize/text edit started or stopped

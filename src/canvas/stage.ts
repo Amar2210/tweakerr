@@ -27,6 +27,13 @@ export class Stage {
     readonly frame: HTMLIFrameElement,
   ) {
     editor.on('change', () => this.queueRelayout());
+    // A live page redrew itself: only re-measure if it grew (re-measuring
+    // resizes the page, and its code may redraw on every resize).
+    editor.on('redraw', () => {
+      const doc = this.editor.doc;
+      const content = Math.max(doc?.documentElement?.scrollHeight ?? 0, doc?.body?.scrollHeight ?? 0);
+      if (content > this.height + 1) this.queueRelayout();
+    });
     new ResizeObserver(() => {
       if (this.editor.fit) this.layout();
     }).observe(canvas);
@@ -63,7 +70,7 @@ export class Stage {
     this.editor.attach(doc, file, live);
     if (live) this.stopWatching = watchPage(this.editor, live);
     this.editor.fit = true;
-    this.layout();
+    this.layout(true);
     return { live: !!live, missing: live ? scripts.local : [] };
   }
 
@@ -78,8 +85,13 @@ export class Stage {
     return doc;
   }
 
-  /** Size the frame to its content and apply zoom. */
-  layout(): void {
+  /**
+   * Size the frame to its content and apply zoom. `remeasure` measures from
+   * the base height, so the page can also shrink. A live page is only
+   * remeasured when asked (on open, or a new device width): the brief
+   * resize would make code that redraws on resize redraw after every edit.
+   */
+  layout(remeasure = false): void {
     const doc = this.editor.doc;
     const width = DEVICE_WIDTH[this.editor.device];
     const base = DEVICE_HEIGHT[this.editor.device];
@@ -88,7 +100,7 @@ export class Stage {
     if (doc) {
       // Measure at the base height, then grow to fit. Doing it in one task
       // avoids feedback loops with `100vh` layouts and never paints the reset.
-      this.frame.style.height = `${base}px`;
+      if (remeasure || !this.editor.live) this.frame.style.height = `${base}px`;
       const content = Math.max(doc.documentElement?.scrollHeight ?? 0, doc.body?.scrollHeight ?? 0);
       this.height = Math.max(base, Math.ceil(content));
     } else {

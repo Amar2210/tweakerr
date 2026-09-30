@@ -159,3 +159,24 @@ test('an item without an id is found by position, with a warning', async ({ page
   expect(rulesOf(saved)).toEqual(['body > div:nth-child(3) > span:nth-child(1) { color: rgb(217, 48, 79) !important; }']);
   await expect(field(page, 'Style rule for this element', 'Custom CSS').locator('textarea')).toHaveValue('color: rgb(217, 48, 79);');
 });
+
+test('a page that redraws on resize settles, and the panel stays clickable', async ({ page }) => {
+  // It used to loop: redraw → re-measure → resize → redraw…, rebuilding the
+  // panel so often that a click's press and release landed on different buttons.
+  const events = await page.evaluate(async () => {
+    const { editor } = (window as any).tweakerr;
+    let n = 0;
+    for (const ev of ['change', 'redraw', 'layout']) editor.on(ev, () => n++);
+    await new Promise((r) => setTimeout(r, 1000));
+    return n;
+  });
+  expect(events).toBe(0);
+
+  // A slow click, as a person makes one, opens the colour picker.
+  const swatch = await page.locator('#props .swatch').first().boundingBox();
+  await page.mouse.move(swatch!.x + swatch!.width / 2, swatch!.y + swatch!.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+  await page.mouse.up();
+  await expect(page.locator('.popover')).toBeVisible();
+});

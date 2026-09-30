@@ -107,7 +107,9 @@ export function watchPage(editor: Editor, live: LiveEdits): () => void {
     }
     editor.setSelection(next);
     if (editor.hovered && !doc.contains(editor.hovered)) editor.hover(null);
-    editor.emit('change');
+    // Not 'change': that re-measures the page, which resizes it, which makes
+    // code that redraws on resize redraw again, round and round.
+    editor.emit('redraw');
   }
 
   const offEdited = editor.on('edited', () => {

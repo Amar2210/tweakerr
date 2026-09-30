@@ -173,7 +173,7 @@ function setDevice(d: Device): void {
   if (!(d in DEVICE_WIDTH)) return;
   editor.device = d;
   editor.fit = true;
-  stage.layout();
+  stage.layout(true);
   updateChrome();
 }
 

@@ -22,6 +22,7 @@ export class PropertiesPanel {
     editor.on('selection', () => this.build());
     editor.on('load', () => this.build());
     editor.on('change', () => this.onChange());
+    editor.on('redraw', () => this.refresh());
     editor.on('interaction', () => {
       if (!editor.busy) this.build();
     });

@@ -28,7 +28,7 @@ export class Overlay {
     readonly root: HTMLElement,
   ) {
     root.append(this.hoverBox, this.groupBoxes, this.selBox, this.handles, this.guides, this.label);
-    for (const ev of ['selection', 'hover', 'change', 'layout', 'interaction', 'load'] as const) {
+    for (const ev of ['selection', 'hover', 'change', 'redraw', 'layout', 'interaction', 'load'] as const) {
       editor.on(ev, () => this.queue());
     }
     // Page-internal scrolling (overflow containers) moves elements under us.
