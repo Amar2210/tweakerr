@@ -180,3 +180,20 @@ test('a page that redraws on resize settles, and the panel stays clickable', asy
   await page.mouse.up();
   await expect(page.locator('.popover')).toBeVisible();
 });
+
+test('stepping an arrow the code redraws: it stays selected, and stops when released', async ({ page }) => {
+  await select(page, '#wire-order-invoice');
+  const up = field(page, 'X', 'Position').getByRole('button', { name: /^Increase/ });
+  const shift = () => inPage(page, (d) => getComputedStyle(d.getElementById('wire-order-invoice')!).translate);
+  // Each next click lands right after the page redrew its arrows, before Tweakerr caught up.
+  for (let i = 0; i < 4; i++) {
+    const before = await page.evaluateHandle(() => (window as any).tweakerr.editor.doc.getElementById('wire-order-invoice'));
+    await up.click();
+    await page.waitForFunction((el) => !(el as Element).isConnected, before);
+  }
+  await expect.poll(shift).toBe('4px');
+  expect(await page.evaluate(() => (window as any).tweakerr.editor.selected?.id)).toBe('wire-order-invoice');
+  await expect(page.locator('.sel-tag')).not.toHaveText('Page');
+  await page.waitForTimeout(1000);
+  expect(await shift()).toBe('4px'); // nothing kept stepping
+});

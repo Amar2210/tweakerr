@@ -100,12 +100,8 @@ export function watchPage(editor: Editor, live: LiveEdits): () => void {
   function afterRedraw(): void {
     if (editor.history?.inTransaction) return;
     live.reapplySwaps();
-    const next: Element[] = [];
-    for (const e of editor.selection) {
-      const found = doc.contains(e) ? e : live.find(live.selectorFor(e));
-      if (found) next.push(found);
-    }
-    editor.setSelection(next);
+    const next = editor.selection.map((e) => live.relocate(e)).filter((e): e is Element => !!e);
+    if (next.length !== editor.selection.length || next.some((e, i) => e !== editor.selection[i])) editor.setSelection(next);
     if (editor.hovered && !doc.contains(editor.hovered)) editor.hover(null);
     // Not 'change': that re-measures the page, which resizes it, which makes
     // code that redraws on resize redraw again, round and round.
@@ -120,9 +116,11 @@ export function watchPage(editor: Editor, live: LiveEdits): () => void {
   });
 
   function fireResize(): void {
-    // Not while the user is typing in the panel: a redraw would rebuild it under them.
+    // Not while the user is typing in the panel or holding a field's up/down
+    // button: a redraw would rebuild it under them.
     const active = document.activeElement;
-    if (editor.busy || (isTypingTarget(active) && active?.closest('#props'))) {
+    const holding = document.querySelector('#props [data-scrubbing="1"]');
+    if (editor.busy || holding || (isTypingTarget(active) && active?.closest('#props'))) {
       resize = window.setTimeout(fireResize, 400);
       return;
     }

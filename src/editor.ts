@@ -167,11 +167,18 @@ export class Editor {
     this.emit('file');
   }
 
-  /** Drop selected/hovered nodes that an undo just removed. */
+  /**
+   * Drop selected/hovered nodes that an undo just removed. On a live page,
+   * follow ones its code redrew instead (an edit can land before the page
+   * watcher has caught up with the redraw).
+   */
   private pruneSelection(): void {
     if (!this.doc) return;
-    const kept = this.selection.filter((e) => this.doc!.contains(e));
-    if (kept.length !== this.selection.length) {
+    const live = this.live;
+    const kept = this.selection
+      .map((e) => (live ? live.relocate(e) : this.doc!.contains(e) ? e : null))
+      .filter((e): e is Element => !!e);
+    if (kept.length !== this.selection.length || kept.some((e, i) => e !== this.selection[i])) {
       this.selection = kept;
       this.emit('selection');
     }

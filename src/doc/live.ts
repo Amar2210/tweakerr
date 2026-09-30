@@ -11,6 +11,7 @@
  * The rules live in the style element's single text node, and the swaps in
  * one of its attributes, so undo/redo (which records DOM changes) covers them.
  */
+import { adoptKey } from './keys';
 import { EDITS_ID, applySwaps, findText, literalCount, saveLiveFile, type TextSwap } from './livefile';
 
 const registry = new WeakMap<Document, LiveEdits>();
@@ -80,6 +81,17 @@ export class LiveEdits {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * The element as it is now: itself, or the copy the page's code drew in
+   * its place (connectors are often wiped and redrawn on every resize).
+   */
+  relocate(el: Element): Element | null {
+    if (this.doc.contains(el)) return el;
+    const found = this.find(this.selectorFor(el));
+    if (found) adoptKey(el, found);
+    return found;
   }
 
   private build(el: Element): string {

@@ -1,6 +1,7 @@
 import type { Editor } from '../editor';
 import { createMover } from '../canvas/transform';
 import { isStructural, isSvgChild } from './kinds';
+import { elementKey } from './keys';
 import { uniqueId } from './markers';
 import { computed, inlineStyle, setStyle } from './style';
 
@@ -80,11 +81,4 @@ export function selectFirstChild(editor: Editor): void {
   if (c) editor.select(c);
 }
 
-const keys = new WeakMap<Element, number>();
-let nextKey = 1;
-/** A stable per-element id used to merge repeated edits into one undo step. */
-export function elementKey(el: Element): number {
-  let k = keys.get(el);
-  if (!k) keys.set(el, (k = nextKey++));
-  return k;
-}
+export { elementKey };

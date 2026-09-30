@@ -135,20 +135,27 @@ export function numberControl(label: string, bind: Binding<string>, opts: Number
         input.value = String(clampNum(current() + dir * step * (e.shiftKey ? 10 : 1)));
         bind.set(normalize(input.value), false);
       };
-      bump();
-      let timer = window.setTimeout(function repeat() {
-        bump();
-        timer = window.setTimeout(repeat, 60);
-      }, 400);
+      let done = false;
       const end = () => {
+        if (done) return;
+        done = true;
         clearTimeout(timer);
-        b.removeEventListener('pointerup', end);
-        b.removeEventListener('pointercancel', end);
+        window.removeEventListener('pointerup', end, true);
+        window.removeEventListener('pointercancel', end, true);
         delete wrap.dataset.scrubbing;
         bind.set(normalize(input.value), true);
       };
-      b.addEventListener('pointerup', end);
-      b.addEventListener('pointercancel', end);
+      bump();
+      // Stops on release anywhere, and if the panel is rebuilt under the button
+      // (it would never hear the release, and keep stepping).
+      let timer = window.setTimeout(function repeat() {
+        if (!b.isConnected) return end();
+        bump();
+        timer = window.setTimeout(repeat, 60);
+      }, 400);
+      window.addEventListener('pointerup', end, true);
+      window.addEventListener('pointercancel', end, true);
+      b.addEventListener('lostpointercapture', end, { once: true });
     });
     return b;
   };
