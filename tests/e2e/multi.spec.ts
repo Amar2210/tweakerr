@@ -178,6 +178,7 @@ test('boxes and shapes together: only shared settings are offered', async ({ pag
 test('"Same type" matches on the main class, so modifier classes still count', async ({ page }) => {
   await page.reload();
   await page.locator('.empty [data-cmd="demo"]').click();
+  await expect(page.locator('#file-name')).toHaveText('tweakerr-demo.html');
   await page.evaluate(() => {
     const { editor } = (window as any).tweakerr;
     editor.select(editor.doc.querySelector('.card.risk'));

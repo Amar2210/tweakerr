@@ -60,6 +60,13 @@ export class PropertiesPanel {
     const parts: HTMLElement[] = [this.header(el, !selected)];
     const similar = selected && !isStructural(selected) ? this.similarRow(selected) : null;
     if (similar) parts.push(similar);
+    const live = this.editor.live;
+    if (live && selected && !isStructural(selected) && this.editor.selection.some((e) => live.isFragile(e))) {
+      parts.push(h('p', {
+        class: 'live-note',
+        text: "No name (id) to find this by, so Tweakerr finds it by its position. If the page's code changes the order of its items, this change could land on a different one.",
+      }));
+    }
     for (const section of buildSections(this.editor, els)) {
       const details = h('details', { class: 'section' }, h('summary', { text: section.title }));
       details.open = !this.closed.has(section.title);
@@ -116,9 +123,9 @@ export class PropertiesPanel {
         'div',
         { class: 'sel-actions' },
         count > 1 ? null : btn('parent', 'Select parent (Shift+Enter)', () => selectParent(this.editor), { disabled: !parent || parent.localName === 'html' }),
-        btn('duplicate', 'Duplicate (Ctrl+D)', () => duplicateSelected(this.editor), { disabled: structural }),
+        btn('duplicate', this.editor.live ? "Can't duplicate on a page drawn by code" : 'Duplicate (Ctrl+D)', () => duplicateSelected(this.editor), { disabled: structural || !!this.editor.live }),
         btn(hidden ? 'eyeOff' : 'eye', hidden ? 'Show' : 'Hide', () => toggleHidden(this.editor), { disabled: structural }),
-        btn('trash', 'Delete (Del)', () => deleteSelected(this.editor), { disabled: structural, danger: true }),
+        btn('trash', this.editor.live ? 'Delete (Del) · hides it on a page drawn by code' : 'Delete (Del)', () => deleteSelected(this.editor), { disabled: structural, danger: true }),
       ),
     );
   }

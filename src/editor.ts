@@ -1,5 +1,6 @@
 import { History } from './doc/history';
 import { isStructural } from './doc/kinds';
+import type { LiveEdits } from './doc/live';
 
 export type Device = 'desktop' | 'tablet' | 'phone';
 export const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 768, phone: 390 };
@@ -9,13 +10,16 @@ export interface OpenFile {
   name: string;
   handle: FileSystemFileHandle | null;
   trailingNewline: boolean;
+  /** The file's text as opened. */
+  source: string;
 }
 
 type EventName =
   | 'load' // a new document was mounted
   | 'selection' // selection changed
   | 'hover' // hovered element changed
-  | 'change' // the document was edited, undone or redone
+  | 'change' // the document was edited, undone or redone, or a live page redrew itself
+  | 'edited' // the user's edit, undo or redo (not the page redrawing itself)
   | 'layout' // page size, zoom or device width changed
   | 'file' // file name / handle / dirty flag changed
   | 'interaction'; // a drag/resize/text edit started or stopped
@@ -28,6 +32,10 @@ export class Editor {
   doc: Document | null = null;
   history: History | null = null;
   file: OpenFile | null = null;
+  /** Set when the page draws itself with scripts: edits are saved as style rules (see doc/live.ts). */
+  live: LiveEdits | null = null;
+  /** Shows a short message to the user (main.ts wires it to a toast). */
+  notify: (message: string) => void = () => {};
 
   /** Everything selected, in the order it was picked. Never contains html/head/body alongside others. */
   selection: Element[] = [];
@@ -64,13 +72,15 @@ export class Editor {
   }
 
   /** Called by the loader once the iframe document is ready. */
-  attach(doc: Document, file: OpenFile): void {
+  attach(doc: Document, file: OpenFile, live: LiveEdits | null = null): void {
     this.doc = doc;
     this.file = file;
+    this.live = live;
     this.selection = [];
     this.hovered = null;
     this.history = new History(doc, () => {
       this.pruneSelection();
+      this.emit('edited');
       this.emit('change');
       this.emit('file');
     });
@@ -142,10 +152,12 @@ export class Editor {
   }
 
   undo(): void {
+    if (this.live) this.live.movedThings = true;
     this.history?.undo();
   }
 
   redo(): void {
+    if (this.live) this.live.movedThings = true;
     this.history?.redo();
   }
 

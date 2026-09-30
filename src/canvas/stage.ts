@@ -1,18 +1,22 @@
 import { DEVICE_HEIGHT, DEVICE_WIDTH, type Editor, type OpenFile } from '../editor';
+import { LiveEdits } from '../doc/live';
 import type { Box } from '../util/geometry';
+import { drawsItself, pageScripts, settle, watchPage } from './livepage';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 const FIT_PADDING = 48;
 
 /**
- * Hosts the user's page in a sandboxed iframe (scripts blocked, but the
- * editor can still reach in), scales it for zoom, and converts between
- * screen coordinates and page coordinates.
+ * Hosts the user's page in a sandboxed iframe (the editor can still reach
+ * in), scales it for zoom, and converts between screen coordinates and page
+ * coordinates. Scripts are blocked, unless the page draws itself with them:
+ * then it opens as a live page (see doc/live.ts).
  */
 export class Stage {
   private height = 0;
   private relayoutQueued = false;
+  private stopWatching: (() => void) | null = null;
 
   constructor(
     private editor: Editor,
@@ -33,22 +37,45 @@ export class Stage {
   }
 
   /** Load HTML text into the frame and hand the document to the editor. */
-  async mount(html: string, name: string, handle: FileSystemFileHandle | null): Promise<void> {
-    const text = html.replace(/^﻿/, '');
-    const file: OpenFile = { name, handle, trailingNewline: /\n\s*$/.test(text) };
-    const loaded = new Promise<void>((resolve) => this.frame.addEventListener('load', () => resolve(), { once: true }));
-    this.frame.srcdoc = text;
-    await loaded;
-    const doc = this.frame.contentDocument;
-    if (!doc) throw new Error('Could not open the page (frame document unavailable).');
+  async mount(html: string, name: string, handle: FileSystemFileHandle | null): Promise<{ live: boolean; missing: string[] }> {
+    const text = html.replace(/^\uFEFF/, '');
+    const file: OpenFile = { name, handle, trailingNewline: /\n\s*$/.test(text), source: text };
+    this.stopWatching?.();
+    this.stopWatching = null;
+
+    const scripts = pageScripts(text);
+    let doc: Document;
+    let live: LiveEdits | null = null;
+    if (scripts.count) {
+      // Run it once to see whether its scripts draw the page.
+      doc = await this.load(text, true);
+      await settle(doc);
+      if (drawsItself(scripts.written, doc)) live = new LiveEdits(doc, text);
+      else doc = await this.load(text, false);
+    } else {
+      doc = await this.load(text, false);
+    }
 
     // Re-measure when late content changes the page height.
     doc.addEventListener('load', () => this.queueRelayout(), true);
     doc.fonts?.ready.then(() => this.queueRelayout());
 
-    this.editor.attach(doc, file);
+    this.editor.attach(doc, file, live);
+    if (live) this.stopWatching = watchPage(this.editor, live);
     this.editor.fit = true;
     this.layout();
+    return { live: !!live, missing: live ? scripts.local : [] };
+  }
+
+  private async load(text: string, runScripts: boolean): Promise<Document> {
+    // Takes effect with the navigation that setting srcdoc starts.
+    this.frame.setAttribute('sandbox', runScripts ? 'allow-same-origin allow-scripts' : 'allow-same-origin');
+    const loaded = new Promise<void>((resolve) => this.frame.addEventListener('load', () => resolve(), { once: true }));
+    this.frame.srcdoc = text;
+    await loaded;
+    const doc = this.frame.contentDocument;
+    if (!doc) throw new Error('Could not open the page (frame document unavailable).');
+    return doc;
   }
 
   /** Size the frame to its content and apply zoom. */

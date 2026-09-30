@@ -10,7 +10,7 @@ No code editor, no asking the AI again for a one-pixel nudge.
 
 - **One file, fully offline.** Tweakerr is a single `tweakerr.html`. Open it in Chrome or Edge. Your page never leaves your computer.
 - **Clean output.** The saved file is your file plus your edits. Nothing else changes. Tweakerr's selection boxes and handles are drawn on a separate layer and never go into your page.
-- **Safe with scripts.** Scripts in your page don't run while you edit, and they are saved back exactly as they were.
+- **Works with pages drawn by code.** If your page builds its boxes and arrows with a script (a diagram made from a data list, say), Tweakerr runs it, lets you click and change what it draws, and saves your changes without touching the code. See [Pages drawn by code](#pages-drawn-by-code).
 
 > Made with Claude.
 
@@ -55,16 +55,45 @@ In Chrome and Edge, Ctrl+S writes straight back to the file you opened (the brow
 
 Press **?** in Tweakerr for all shortcuts.
 
+## Pages drawn by code
+
+Some pages keep their content in a script and draw it when the page opens, like a flow diagram built from a list of steps. Tweakerr notices this when you open the page and shows a **Live page** badge. The page's scripts run while you edit, so everything they draw is there to click.
+
+Your changes are saved differently on these pages. Tweakerr can't save the drawn boxes into the file, because the script would then draw them a second time. So it leaves your file exactly as it was, and adds one block at the top of it:
+
+```html
+<style id="tweakerr-edits">
+/* Changes made with Tweakerr. Delete this block to undo them all. */
+#step-order { background-color: rgb(255, 243, 196) !important; }
+#step-cash { left: 40px !important; top: 90px !important; }
+</style>
+```
+
+When the page opens, the script draws everything as usual, and these rules restyle it. Open the file in Tweakerr again and you can keep editing the same rules.
+
+| On a live page | |
+|---|---|
+| **Works** | Colours, gradients, borders, fonts, sizes, spacing, opacity, arrow colours. Moving and resizing boxes. If the page redraws its arrows when the window changes size, they follow the boxes you move. |
+| **Text** | Double-click to change words. Tweakerr changes them where the code writes them (`title: 'Invoice'` becomes `title: 'Billing'`). If the same words appear more than once in the code, or are built from pieces, it can't tell which one to change and says so. |
+| **Delete** | Hides the item, because the code would just draw it again. |
+| **Not available** | Duplicating, dragging the two ends of a line separately, and link/image fields. |
+
+A thing the code draws without an id is found by its position ("the 14th item in the grid"), and the panel tells you so. If you later change the code so that its items come in a different order, such a change can land on a different item.
+
+A page whose script does something small, like filling in today's date, isn't a live page: it opens with scripts off and full editing, as before.
+
+Scripts only run in pages that draw themselves. Opening such a page in Tweakerr is like opening it in your browser, so open only files you trust.
+
 ## How edits are saved
 
-Every change is saved as an inline `style` (or an SVG attribute) on the element you changed. A moved box gets `translate: 12px 4px`. A thicker border gets `border-width: 4px`. It stays readable and easy to undo by hand.
+On an ordinary page, every change is saved as an inline `style` (or an SVG attribute) on the element you changed. A moved box gets `translate: 12px 4px`. A thicker border gets `border-width: 4px`. It stays readable and easy to undo by hand.
 
 If your stylesheet uses `!important` for a property you change, Tweakerr adds `!important` to your edit too, so the change actually shows.
 
-## Limits (v0.2)
+## Limits (v0.3)
 
-- **Pages built by scripts.** Some pages keep their content in JavaScript and draw it when the page runs (an interactive diagram, a slideshow player). Scripts don't run in Tweakerr, so that content won't appear and can't be edited. Pages whose HTML is written out directly work fully.
-- **Files that load other files.** Images or stylesheets referenced by relative paths (`styles/main.css`, `img/logo.png`) don't load, because Tweakerr sees only the file itself. Single-file pages and links to the web (`https://…`) are fine.
+- **Files that load other files.** Scripts, images or stylesheets referenced by relative paths (`app.js`, `styles/main.css`, `img/logo.png`) don't load, because Tweakerr sees only the file itself. Tweakerr warns you when a page's script is in another file. Single-file pages and links to the web (`https://…`) are fine.
+- **Pages drawn by code** have the limits listed in [Pages drawn by code](#pages-drawn-by-code).
 - **Chrome or Edge** is needed to save straight back to the file. Other browsers fall back to downloading a copy.
 - **With several selected**, resize handles, exact SVG coordinates, link/image fields and the raw CSS box are hidden (they only make sense one element at a time). Boxes and SVG shapes selected together share only opacity.
 - **Not yet supported:** adding new shapes, drag-to-select with a rectangle, editing several files at once.

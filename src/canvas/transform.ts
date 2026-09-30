@@ -1,5 +1,6 @@
 import { isStructural, isSvgChild, resizeKind } from '../doc/kinds';
-import { computed, setAttr, setStyle } from '../doc/style';
+import { liveFor } from '../doc/live';
+import { computed, setAttr, setStyle, svgNumber } from '../doc/style';
 import { addSvgTranslate, formatCssTranslate, parseCssTranslate, r2 } from '../util/geometry';
 
 /**
@@ -25,6 +26,15 @@ export function createMover(el: Element): Mover | null {
     const ctm = parent?.getScreenCTM?.();
     if (!ctm) return null;
     const inv = ctm.inverse();
+    if (liveFor(el.ownerDocument)) {
+      // Live page: a CSS `translate`, also in the parent's units, so it can be a style rule.
+      const [bx, by] = parseCssTranslate(computed(el, 'translate'));
+      return {
+        move(dx, dy) {
+          setStyle(el, 'translate', formatCssTranslate(bx + inv.a * dx + inv.c * dy, by + inv.b * dx + inv.d * dy));
+        },
+      };
+    }
     const base = el.getAttribute('transform');
     return {
       move(dx, dy) {
@@ -33,6 +43,12 @@ export function createMover(el: Element): Mover | null {
         setAttr(el, 'transform', addSvgTranslate(base, ux, uy) || null);
       },
     };
+  }
+
+  // Live page: move with left/top, which the page's own code measures too.
+  if (liveFor(el.ownerDocument)) {
+    const shift = offsetShifter(el);
+    return { move: shift };
   }
 
   // HTML (and outer <svg>): the CSS `translate` property shifts the box
@@ -52,6 +68,38 @@ export function createMover(el: Element): Mover | null {
   };
 }
 
+/**
+ * Live pages move HTML boxes with `left`/`top` (made `position: relative`
+ * if needed) rather than `translate`: code that draws connectors often
+ * measures boxes with offsetLeft/offsetTop, which ignore transforms.
+ * Returns a function that shifts the box by (dx, dy) from where it started.
+ */
+export function offsetShifter(el: Element): (dx: number, dy: number) => void {
+  const cs = el.ownerDocument.defaultView!.getComputedStyle(el);
+  const statik = cs.position === 'static';
+  const bx = statik ? 0 : parseFloat(cs.left) || 0;
+  const by = statik ? 0 : parseFloat(cs.top) || 0;
+  let prepared = false;
+  return (dx, dy) => {
+    if (!prepared) {
+      prepareOffset(el);
+      prepared = true;
+    }
+    setStyle(el, 'left', `${r2(bx + dx)}px`);
+    setStyle(el, 'top', `${r2(by + dy)}px`);
+  };
+}
+
+/** Make left/top move this box: relative if it's in the flow, and no right/bottom pulling against them. */
+export function prepareOffset(el: Element): void {
+  const pos = computed(el, 'position');
+  if (pos === 'static') setStyle(el, 'position', 'relative');
+  if (pos === 'absolute' || pos === 'fixed') {
+    setStyle(el, 'right', 'auto');
+    setStyle(el, 'bottom', 'auto');
+  }
+}
+
 export function createResizer(el: Element, handle: string): Resizer | null {
   switch (resizeKind(el)) {
     case 'box':
@@ -63,7 +111,8 @@ export function createResizer(el: Element, handle: string): Resizer | null {
     case 'ellipse':
       return radiusResizer(el, handle, ['rx', 'ry']);
     case 'line':
-      return lineResizer(el as SVGLineElement, handle);
+      // Line ends have no CSS twin, so a live page can't save them.
+      return liveFor(el.ownerDocument) ? null : lineResizer(el as SVGLineElement, handle);
     default:
       return null;
   }
@@ -105,6 +154,7 @@ function boxResizer(el: Element, handle: string): Resizer {
   const inline = cs.display === 'inline';
   const horiz = /[ew]/.test(handle);
   const vert = /[ns]/.test(handle);
+  const shift = liveFor(el.ownerDocument) ? offsetShifter(el) : null;
   let blocked = false;
 
   return {
@@ -118,9 +168,10 @@ function boxResizer(el: Element, handle: string): Resizer {
       if (vert || keepRatio) setStyle(el, 'height', `${r2(Math.max(0, h - extraY))}px`);
       // Dragging a left/top handle should keep the opposite edge still.
       if (handle.includes('w') || handle.includes('n')) {
-        const tx = bx + (handle.includes('w') ? rect.width - w : 0);
-        const ty = by + (handle.includes('n') ? rect.height - h : 0);
-        setStyle(el, 'translate', formatCssTranslate(tx, ty));
+        const sx = handle.includes('w') ? rect.width - w : 0;
+        const sy = handle.includes('n') ? rect.height - h : 0;
+        if (shift) shift(sx, sy);
+        else setStyle(el, 'translate', formatCssTranslate(bx + sx, by + sy));
       }
     },
   };
@@ -134,7 +185,7 @@ function toUser(el: Element): ((dx: number, dy: number) => [number, number]) | n
   return (dx, dy) => [inv.a * dx + inv.c * dy, inv.b * dx + inv.d * dy];
 }
 
-const num = (el: Element, name: string) => parseFloat(el.getAttribute(name) ?? '') || 0;
+const num = (el: Element, name: string) => svgNumber(el, name);
 
 function svgRectResizer(el: Element, handle: string): Resizer | null {
   const conv = toUser(el);
@@ -142,8 +193,8 @@ function svgRectResizer(el: Element, handle: string): Resizer | null {
   const bbox = (el as SVGGraphicsElement).getBBox?.();
   const x0 = num(el, 'x');
   const y0 = num(el, 'y');
-  const w0 = el.hasAttribute('width') ? num(el, 'width') : bbox?.width ?? 0;
-  const h0 = el.hasAttribute('height') ? num(el, 'height') : bbox?.height ?? 0;
+  const w0 = svgNumber(el, 'width', bbox?.width ?? 0);
+  const h0 = svgNumber(el, 'height', bbox?.height ?? 0);
   return {
     resize(dx, dy, keepRatio) {
       const [ux, uy] = conv(dx, dy);

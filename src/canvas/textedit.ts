@@ -13,6 +13,7 @@ const XHTML = 'http://www.w3.org/1999/xhtml';
 export class TextEditor {
   active: HTMLElement | null = null;
   private previousAttr: string | null = null;
+  private startText = '';
   private cleanup: (() => void) | null = null;
 
   constructor(
@@ -35,6 +36,14 @@ export class TextEditor {
     // Check by namespace: `instanceof HTMLElement` fails across the iframe boundary.
     if (!doc || !this.editor.history || !isTextEditable(el) || el.namespaceURI !== XHTML) return false;
     this.commit();
+    // A live page's words are saved by changing them where the file writes them.
+    const live = this.editor.live;
+    const refused = live?.canEditText(el);
+    if (refused) {
+      this.editor.notify(refused);
+      return false;
+    }
+    this.startText = el.textContent ?? '';
 
     const html = el as HTMLElement;
     this.previousAttr = el.getAttribute('contenteditable');
@@ -80,6 +89,7 @@ export class TextEditor {
     this.active = null;
     this.cleanup?.();
     this.cleanup = null;
+    this.editor.live?.recordText(el, this.startText, el.textContent ?? '');
     this.editor.history?.end();
     if (this.previousAttr === null) el.removeAttribute('contenteditable');
     else el.setAttribute('contenteditable', this.previousAttr);

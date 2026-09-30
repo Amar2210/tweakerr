@@ -29,9 +29,12 @@ new LayersPanel(editor, $('#layers'));
 function toast(message: string, kind: 'info' | 'error' = 'info'): void {
   const t = h('div', { class: `toast ${kind}`, text: message, attrs: { role: kind === 'error' ? 'alert' : 'status' } });
   $('#toasts').append(t);
-  setTimeout(() => t.classList.add('out'), kind === 'error' ? 5000 : 2200);
-  setTimeout(() => t.remove(), kind === 'error' ? 5400 : 2600);
+  // Long enough to read: longer messages stay up longer.
+  const ms = Math.max(kind === 'error' ? 5000 : 2200, message.length * 50);
+  setTimeout(() => t.classList.add('out'), ms);
+  setTimeout(() => t.remove(), ms + 400);
 }
+editor.notify = (message) => toast(message);
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -47,8 +50,11 @@ async function openPicked(picked: PickedFile | null): Promise<void> {
   }
   if (editor.dirty && !confirm('You have unsaved changes. Open another file and lose them?')) return;
   try {
-    await stage.mount(picked.text, picked.name, picked.handle);
-    toast(`Opened ${picked.name}`);
+    const opened = await stage.mount(picked.text, picked.name, picked.handle);
+    toast(opened.live ? `Opened ${picked.name} · its code draws it, so changes are saved as style rules` : `Opened ${picked.name}`);
+    if (opened.missing.length) {
+      toast(`This page loads ${opened.missing.join(', ')} from its own folder. Tweakerr can't reach ${opened.missing.length > 1 ? 'those files' : 'that file'}, so parts it draws may be missing.`, 'error');
+    }
   } catch (err) {
     toast(`Couldn't open ${picked.name}: ${errorText(err)}`, 'error');
   }
@@ -65,6 +71,7 @@ async function openDemo(): Promise<void> {
 function currentHtml(): string | null {
   text.commit();
   if (!editor.doc || !editor.file) return null;
+  if (editor.live) return editor.live.save();
   return serializeDocument(editor.doc, { trailingNewline: editor.file.trailingNewline });
 }
 
@@ -200,6 +207,7 @@ function updateChrome(): void {
   document.title = name ? `${editor.dirty ? '• ' : ''}${name} — Tweakerr` : 'Tweakerr';
 
   document.body.classList.toggle('has-doc', hasDoc);
+  $('#live-badge').hidden = !editor.live;
 }
 
 function updateCrumbs(): void {

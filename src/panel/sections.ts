@@ -7,6 +7,7 @@ import { collectFonts, collectPalette } from '../doc/palette';
 import { computed, setAttr, setStyle } from '../doc/style';
 import { formatColor, resolveColor } from '../util/color';
 import { addSvgTranslate, formatCssTranslate, parseCssTranslate, r2, readSvgTranslate } from '../util/geometry';
+import { prepareOffset } from '../canvas/transform';
 import { type Gradient, formatGradient, gradientLayer, headToAngle, isStop } from '../util/gradient';
 import {
   type Binding,
@@ -87,7 +88,7 @@ export function buildSections(editor: Editor, els: Element[]): Section[] {
   sections.push(spacingSection(css));
   sections.push(effectsSection(css));
   if (!multi) {
-    const content = contentSection(el, attr);
+    const content = editor.live ? null : contentSection(el, attr);
     if (content) sections.push(content);
     sections.push(customSection(editor, el));
   }
@@ -303,16 +304,7 @@ function layoutSection(editor: Editor, el: Element, els: Element[], css: Css): S
       read: () => `${r2(el.getBoundingClientRect()[dim])}px`,
       write: (e, v) => setStyle(e, dim, toContentSize(e, dim, v)),
     });
-  const shift = (axis: 0 | 1): Binding<string> =>
-    css('translate', {
-      read: () => `${parseCssTranslate(computed(el, 'translate'))[axis]}px`,
-      write: (e, v) => {
-        const cur = parseCssTranslate(computed(e, 'translate'));
-        cur[axis] = parseFloat(v) || 0;
-        if (computed(e, 'display') === 'inline') setStyle(e, 'display', 'inline-block');
-        setStyle(e, 'translate', formatCssTranslate(cur[0], cur[1]));
-      },
-    });
+  const shift = (axis: 0 | 1) => (editor.live ? offsetShift(el, css, axis) : cssShift(el, css, axis));
   const z = css('z-index', {
     read: () => {
       const v = computed(el, 'z-index');
@@ -334,7 +326,10 @@ function layoutSection(editor: Editor, el: Element, els: Element[], css: Css): S
         {
           label: 'Reset move',
           title: 'Put it back where the layout places it',
-          run: () => editor.edit('Reset position', () => els.forEach((e) => setStyle(e, 'translate', ''))),
+          run: () =>
+            editor.edit('Reset position', () => {
+              for (const e of els) for (const p of editor.live ? MOVE_PROPS : ['translate']) setStyle(e, p, '');
+            }),
         },
         {
           label: 'Auto size',
@@ -350,6 +345,34 @@ function layoutSection(editor: Editor, el: Element, els: Element[], css: Css): S
       ]),
     ],
   };
+}
+
+/** What a live page's moves set (see offsetShifter). */
+const MOVE_PROPS = ['translate', 'left', 'top', 'right', 'bottom', 'position'];
+
+/** Live page X/Y: the box's left/top, as its moves set them. */
+function offsetShift(el: Element, css: Css, axis: 0 | 1): Binding<string> {
+  const side = axis === 0 ? 'left' : 'top';
+  return css(side, {
+    read: () => (computed(el, 'position') === 'static' ? '0px' : `${r2(parseFloat(computed(el, side)) || 0)}px`),
+    write: (e, v) => {
+      prepareOffset(e);
+      setStyle(e, side, v);
+    },
+  });
+}
+
+/** X/Y moved by the CSS `translate` property. */
+function cssShift(el: Element, css: Css, axis: 0 | 1): Binding<string> {
+  return css('translate', {
+    read: () => `${parseCssTranslate(computed(el, 'translate'))[axis]}px`,
+    write: (e, v) => {
+      const cur = parseCssTranslate(computed(e, 'translate'));
+      cur[axis] = parseFloat(v) || 0;
+      if (!isSvgChild(e) && computed(e, 'display') === 'inline') setStyle(e, 'display', 'inline-block');
+      setStyle(e, 'translate', formatCssTranslate(cur[0], cur[1]));
+    },
+  });
 }
 
 /** The W/H fields show the outer size; convert to what `width` means for this box. */
@@ -425,6 +448,18 @@ function contentSection(el: Element, attr: Attr): Section | null {
 
 function customSection(editor: Editor, el: Element): Section {
   const id = elementKey(el);
+  const live = editor.live;
+  if (live) {
+    return {
+      title: 'Custom CSS',
+      controls: [
+        textControl('Style rule for this element', {
+          get: () => live.cssText(el),
+          set: (v) => editor.edit('Edit custom CSS', () => live.setCssText(el, v.replace(/\n/g, ' ')), `${id}:@style`),
+        }, { multiline: true, mono: true, placeholder: 'color: red;\nborder: 2px dashed teal;' }),
+      ],
+    };
+  }
   return {
     title: 'Custom CSS',
     controls: [
@@ -506,10 +541,11 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
         }, { palette }),
       );
     }
+    if (heads.length && editor.live) heads.push(noteControl('On a page drawn by code, an arrowhead change applies to every arrow that shares it.'));
     if (heads.length) sections.push({ title: 'Arrowheads', controls: heads });
   }
 
-  const shift = (axis: 0 | 1): Binding<string> => ({
+  const shift = (axis: 0 | 1): Binding<string> => editor.live ? cssShift(el, css, axis) : ({
     get: () => String(readSvgTranslate(el.getAttribute('transform'))[axis]),
     set: (v) =>
       editor.edit('Move', () => {
@@ -526,7 +562,8 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
   const nums = (names: string[]) =>
     gridControl('', names.map((n) => numberControl(n, attr(n), { inline: true, unit: '' })), 2);
   // Exact coordinates only make sense for one shape at a time.
-  if (!multi) switch (el.localName) {
+  // A live page moves shapes with style rules; exact coordinates stay the code's.
+  if (!multi && !editor.live) switch (el.localName) {
     case 'rect':
       geo.push(nums(['x', 'y', 'width', 'height']), gridControl('', [numberControl('rx', attr('rx'), { inline: true, unit: '', min: 0 })], 2));
       break;
@@ -555,7 +592,16 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
     if (!multi && el.children.length === 0) {
       text.push(textControl('Text', {
         get: () => el.textContent ?? '',
-        set: (v) => editor.edit('Edit text', () => { el.textContent = v; }, `${key}:text`),
+        set: (v) => {
+          const live = editor.live;
+          if (!live) return editor.edit('Edit text', () => { el.textContent = v; }, `${key}:text`);
+          const refused = live.canEditText(el);
+          if (refused) return editor.notify(refused);
+          editor.edit('Edit text', () => {
+            live.recordText(el, el.textContent ?? '', v);
+            el.textContent = v;
+          }, `${key}:text`);
+        },
       }));
     } else if (!multi) {
       text.push(noteControl('Has styled parts — select a part to edit its words.'));

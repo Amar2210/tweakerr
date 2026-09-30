@@ -9,6 +9,12 @@ import { computed, inlineStyle, setStyle } from './style';
 export function deleteSelected(editor: Editor): void {
   const els = editor.selectionRoots.filter((e) => !isStructural(e));
   if (!els.length) return;
+  if (editor.live) {
+    // The page's code would just draw it again, so hide it instead.
+    editor.edit(els.length > 1 ? `Hide ${els.length} elements` : 'Hide', () => els.forEach((el) => setStyle(el, 'display', 'none')));
+    editor.notify(els.length > 1 ? 'Hidden. On a page drawn by code, Delete hides things.' : 'Hidden. On a page drawn by code, Delete hides it.');
+    return;
+  }
   const next = els.length === 1 ? els[0].parentElement : null;
   editor.edit(els.length > 1 ? `Delete ${els.length} elements` : 'Delete', () => els.forEach((el) => el.remove()));
   editor.select(next && !isStructural(next) ? next : null);
@@ -17,6 +23,10 @@ export function deleteSelected(editor: Editor): void {
 export function duplicateSelected(editor: Editor): void {
   const els = editor.selectionRoots.filter((e) => !isStructural(e));
   if (!els.length) return;
+  if (editor.live) {
+    editor.notify("This page is drawn by code, which decides what's on it, so Tweakerr can't add copies.");
+    return;
+  }
   const copies: Element[] = [];
   editor.edit(els.length > 1 ? `Duplicate ${els.length} elements` : 'Duplicate', () => {
     for (const el of els) {

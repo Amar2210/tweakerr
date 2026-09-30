@@ -4,6 +4,7 @@
  * for this arrow first (only when it's shared).
  */
 import { canHaveMarkers } from './kinds';
+import { liveFor } from './live';
 import { computed, setStyle } from './style';
 
 export type MarkerEnd = 'start' | 'end';
@@ -69,6 +70,10 @@ export function uniqueId(doc: Document, base: string): string {
  * Call inside an edit.
  */
 export function ensureGroupMarker(els: Element[], which: MarkerEnd): Element[] {
+  // A live page saves style rules, not new elements: recolour the shared arrowhead itself.
+  if (els[0] && liveFor(els[0].ownerDocument)) {
+    return [...new Set(els.map((el) => markerOf(el, which)).filter((m): m is Element => !!m))];
+  }
   const byMarker = new Map<Element, Element[]>();
   for (const el of els) {
     const m = markerOf(el, which);

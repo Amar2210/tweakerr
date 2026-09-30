@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Drawn flow</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; background: #f6f7fb; color: #222; }
+  h1 { margin: 24px 40px; font-size: 26px; }
+  #board { position: relative; height: 380px; margin: 0 40px; }
+  .step { position: absolute; width: 160px; padding: 14px; background: #ffffff; border: 2px solid #4a67d6; border-radius: 10px; }
+  .step h2 { margin: 0 0 4px; font-size: 16px; }
+  .step p { margin: 0; font-size: 13px; color: #555; }
+  #wires { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
+  .legend { margin: 12px 40px; font-size: 12px; color: #666; }
+</style>
+</head>
+<body>
+<h1 id="title">Order to cash</h1>
+<div id="board"><svg id="wires" xmlns="http://www.w3.org/2000/svg"></svg></div>
+<div class="legend"></div>
+<script>
+  // A typical AI-made flow: the boxes come from a list, the arrows are
+  // measured from where the boxes ended up, and redrawn on resize.
+  const steps = [
+    { id: 'quote', title: 'Quote', note: 'Sales prepares it', x: 0, y: 40 },
+    { id: 'order', title: 'Order', note: 'Customer signs', x: 260, y: 40 },
+    { id: 'invoice', title: 'Invoice', note: 'Finance sends it', x: 520, y: 40 },
+    { id: 'cash', title: 'Cash', note: 'Finance sends it', x: 520, y: 240 },
+  ];
+  const links = [['quote', 'order'], ['order', 'invoice'], ['invoice', 'cash']];
+  const board = document.getElementById('board');
+  const wires = document.getElementById('wires');
+
+  for (const s of steps) {
+    const el = document.createElement('div');
+    el.className = 'step';
+    el.id = 'step-' + s.id;
+    el.style.left = s.x + 'px';
+    el.style.top = s.y + 'px';
+    el.innerHTML = '<h2>' + s.title + '</h2><p>' + s.note + '</p>';
+    board.appendChild(el);
+  }
+  document.querySelector('.legend').innerHTML = '<span>' + steps.length + ' steps</span>';
+
+  function drawWires() {
+    const b = board.getBoundingClientRect();
+    wires.innerHTML = '<defs><marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>';
+    for (const [from, to] of links) {
+      const a = document.getElementById('step-' + from).getBoundingClientRect();
+      const c = document.getElementById('step-' + to).getBoundingClientRect();
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.id = 'wire-' + from + '-' + to;
+      line.setAttribute('x1', a.left + a.width / 2 - b.left);
+      line.setAttribute('y1', a.top + a.height / 2 - b.top);
+      line.setAttribute('x2', c.left + c.width / 2 - b.left);
+      line.setAttribute('y2', c.top + c.height / 2 - b.top);
+      line.setAttribute('stroke', '#333');
+      line.setAttribute('stroke-width', '2');
+      line.setAttribute('marker-end', 'url(#tip)');
+      wires.appendChild(line);
+    }
+  }
+  drawWires();
+  addEventListener('resize', drawWires);
+</script>
+</body>
+</html>

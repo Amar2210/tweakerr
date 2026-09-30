@@ -27,6 +27,7 @@ src/main.ts            wiring: toolbar, keyboard, open/save, drag-and-drop
 src/editor.ts          shared state + events (load, selection, change, layout…); the selection is a list
 src/canvas/
   stage.ts             the user's page in a sandboxed iframe; zoom; coordinates
+  livepage.ts          is this a live page? keeping the editor in step when it redraws
   overlay.ts           glass layer on top: hover/selection boxes, handles, guides
   pointer.ts           mouse: select, drag (with snapping), resize, double-click
   transform.ts         how each kind of element moves and resizes
@@ -34,7 +35,9 @@ src/canvas/
 src/doc/
   history.ts           undo/redo, recorded with a MutationObserver
   serialize.ts         document -> HTML file
-  style.ts             read computed styles, write inline styles
+  style.ts             read computed styles, write inline styles (or live rules)
+  live.ts              live pages: edits as style rules keyed by selector, text swaps
+  livefile.ts          saving a live page: original text + edits block + swaps
   markers.ts           SVG arrowheads (copy-on-write for shared markers)
   actions.ts           delete, duplicate, hide, nudge, select parent/child/siblings
   similar.ts           "select all like this": same type, same colour
@@ -45,6 +48,10 @@ src/io/files.ts        File System Access API with input/download fallbacks
 
 The page being edited is loaded into an `<iframe sandbox="allow-same-origin">` via `srcdoc`. Without `allow-scripts`, the page's scripts never run. `allow-same-origin` still lets the editor read and change its DOM directly.
 
+**Live pages.** If the page has scripts, `Stage.mount` first loads it with `allow-scripts`, waits for it to settle, and compares it with the page as written (`drawsItself`). If the scripts drew a real part of it, the page stays live: a `LiveEdits` (src/doc/live.ts) is attached. Otherwise it's reloaded with scripts off.
+
+On a live page, `setStyle`/`setAttr` write into one `<style id="tweakerr-edits">` instead of inline styles. Each element gets a rule keyed by a selector: its id, else a `data-id`-like attribute, else an `:nth-child` path from the nearest ancestor with one. All rules are `!important`, because page code often sets inline styles. The rules live in the style element's single text node, and text swaps in one of its attributes, so history records them like any other DOM change. Saving (`livefile.ts`) writes the original file text plus that block, with swaps applied; the DOM is never serialised. HTML boxes move with `left`/`top` rather than `translate`, because connector code often measures with `offsetLeft`. After such a change, `watchPage` fires a `resize` so the page can redraw, then finds the selection again by selector.
+
 ## Rules that keep saved files clean
 
 1. **Never draw editor UI inside the page.** Selection boxes, handles, labels and guides all live in the overlay, in the editor's own document. Serialising the page must give back the user's file plus their edits and nothing else.
@@ -52,7 +59,8 @@ The page being edited is loaded into an `<iframe sandbox="allow-same-origin">` v
 3. **Temporary attributes stay outside transactions.** Example: the `contenteditable` that text editing needs is added before `begin()` and removed after `end()`.
 4. **Watch for cross-frame objects.** Page nodes come from the iframe's window, so `el instanceof HTMLElement` is false for them. Check `namespaceURI` or `localName` instead.
 5. **Think in selections.** `editor.selection` is a list, and `editor.selected` is the main (last picked) element. The panel reads values from the main one and writes to all of them. Commands that move or delete use `editor.selectionRoots`, so a card and its heading selected together are only moved once.
-6. **Offline only.** No CDN, fonts or network calls in the editor. The build must work opened from disk.
+6. **Write styles through `setStyle`/`setAttr`** (src/doc/style.ts), never `el.style` or `setAttribute` directly, so live pages get rules for free. An attribute with no CSS twin (line ends, `href`) can't be saved on a live page, so its control is hidden there.
+7. **Offline only.** No CDN, fonts or network calls in the editor. The build must work opened from disk.
 
 ## Tests
 

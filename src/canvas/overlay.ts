@@ -108,6 +108,7 @@ export class Overlay {
     const kind = resizeKind(el);
     if (kind === 'none') return;
     if (kind === 'line') {
+      if (this.editor.live) return; // line ends can't be saved on a live page
       const pts = lineEndpoints(el as SVGLineElement);
       if (!pts) return;
       pts.forEach((p, i) => {
