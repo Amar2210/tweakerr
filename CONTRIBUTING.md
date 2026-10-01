@@ -50,7 +50,7 @@ src/io/files.ts        File System Access API with input/download fallbacks
 src/util/path.ts       SVG path data: parse, move an end, bend, straighten
 ```
 
-The page being edited is loaded into an `<iframe sandbox="allow-same-origin">` via `srcdoc`. Without `allow-scripts`, the page's scripts never run. `allow-same-origin` still lets the editor read and change its DOM directly.
+The page being edited is loaded into an `<iframe sandbox="allow-same-origin">` via `srcdoc`. Without `allow-scripts`, the page's scripts never run. `allow-same-origin` still lets the editor read and change its DOM directly. Clicks are matched to elements with `elementFromPoint`. So that SVG labels the page made click-through (`pointer-events: none`) can still be picked, `Stage` adds one adopted stylesheet. It isn't in the DOM, so it never reaches history or the saved file.
 
 **Live pages.** If the page has scripts, `Stage.mount` first loads it with `allow-scripts`, waits for it to settle, and compares it with the page as written (`drawsItself`). If the scripts drew a real part of it, the page stays live: a `LiveEdits` (src/doc/live.ts) is attached. Otherwise it's reloaded with scripts off.
 

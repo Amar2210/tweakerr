@@ -8,6 +8,13 @@ const MAX_ZOOM = 4;
 const FIT_PADDING = 48;
 
 /**
+ * SVG shapes and text the page made click-through (`pointer-events: none`,
+ * common for arrow labels) can still be picked in the editor. Only painted
+ * parts count, so the empty space in an SVG still clicks through.
+ */
+const PICKABLE = 'svg :is(path, line, polyline, polygon, rect, circle, ellipse, text, tspan, image, use) { pointer-events: visiblePainted !important; }';
+
+/**
  * Hosts the user's page in a sandboxed iframe (the editor can still reach
  * in), scales it for zoom, and converts between screen coordinates and page
  * coordinates. Scripts are blocked, unless the page draws itself with them:
@@ -63,6 +70,7 @@ export class Stage {
       doc = await this.load(text, false);
     }
 
+    pickable(doc);
     // Re-measure when late content changes the page height.
     doc.addEventListener('load', () => this.queueRelayout(), true);
     doc.fonts?.ready.then(() => this.queueRelayout());
@@ -171,4 +179,20 @@ export class Stage {
 
 function clampZoom(z: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(z * 1000) / 1000));
+}
+
+/**
+ * Add the editor's hit-testing rules to the page. An adopted sheet isn't in
+ * the DOM, so it never reaches history or the saved file.
+ */
+function pickable(doc: Document): void {
+  const win = doc.defaultView as (Window & typeof globalThis) | null;
+  if (!win?.CSSStyleSheet || !('adoptedStyleSheets' in doc)) return;
+  try {
+    const sheet = new win.CSSStyleSheet(); // must come from the page's own window
+    sheet.replaceSync(PICKABLE);
+    doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
+  } catch {
+    // Older browsers: labels stay click-through.
+  }
 }

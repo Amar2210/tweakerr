@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { domDiff, drag, launch, openFile, readFixture, saveViaDownload, select } from './helpers';
+import { domDiff, drag, launch, openFile, readFixture, saveViaDownload, select, setField } from './helpers';
 
 const inPage = <T>(page: Page, fn: (doc: Document) => T) =>
   page.evaluate(`(${fn.toString()})(window.tweakerr.editor.doc)`) as Promise<T>;
@@ -126,6 +126,24 @@ test.describe('on a page drawn by code', () => {
 
     await page.locator('#props button', { hasText: 'Reset shape' }).click();
     expect(await inPage(page, (d) => d.getElementById('tweakerr-edits')!.textContent)).not.toContain('wire-loop');
+  });
+
+  test('a click-through label can still be picked, and its words changed', async ({ page }) => {
+    const at = await inPage(page, (d) => {
+      const r = d.querySelector('#wires text.lbl')!.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    const p = await toScreen(page, at.x, at.y);
+    await page.mouse.click(p.x, p.y);
+    expect(await page.evaluate(() => (window as any).tweakerr.editor.selected?.textContent)).toBe('handover');
+
+    await setField(page, 'Text', 'hand-off', 'Text');
+    await page.evaluate(() => (window as any).tweakerr.editor.win.dispatchEvent(new Event('resize')));
+    await page.waitForTimeout(400);
+    expect(await inPage(page, (d) => d.querySelector('#wires text.lbl')!.textContent)).toBe('hand-off');
+    const saved = await saveViaDownload(page);
+    expect(saved).toContain('>hand-off</text>');
+    expect(saved).not.toContain('visiblePainted'); // the editor's click rule stays out of the file
   });
 
   test('straight lines drawn by code have no dots (their ends can\'t be saved)', async ({ page }) => {
