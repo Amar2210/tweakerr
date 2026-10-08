@@ -1,4 +1,4 @@
-import { formatColor, resolveColor, toHex } from '../util/color';
+import { formatColor, parseColor, resolveColor, toHex } from '../util/color';
 import { quoteFamily } from '../doc/fonts';
 import { h } from '../util/dom';
 import { icon } from '../util/icons';
@@ -28,6 +28,21 @@ function busy(el: HTMLElement): boolean {
   return el.contains(document.activeElement) || el.dataset.scrubbing === '1';
 }
 
+// -------------------------------------------------------------- checkbox
+
+let checkboxId = 0;
+
+export function checkboxControl(label: string, bind: Binding<boolean>): Control {
+  const id = `ctl-checkbox-${++checkboxId}`;
+  const input = h('input', { class: 'ctl-checkbox', attrs: { type: 'checkbox', id } });
+  const lab = h('label', { class: 'ctl-label', text: label, attrs: { for: id } });
+  const wrap = row(lab, input);
+  input.addEventListener('change', () => bind.set(input.checked, true));
+  const refresh = () => { input.checked = bind.get(); };
+  refresh();
+  return { el: wrap, refresh };
+}
+
 // ---------------------------------------------------------------- number
 
 export interface NumberOpts {
@@ -43,6 +58,8 @@ export interface NumberOpts {
   title?: string;
   /** Where the arrows start when the field holds a word ("normal", "auto"). */
   start?: () => number;
+  /** Use wide minus/plus buttons on either side of the value. */
+  stepper?: 'arrows' | 'plus-minus';
 }
 
 /**
@@ -54,7 +71,8 @@ export interface NumberOpts {
 export function numberControl(label: string, bind: Binding<string>, opts: NumberOpts = {}): Control {
   const unit = opts.unit ?? 'px';
   const step = opts.step ?? 1;
-  const input = h('input', { class: 'ctl-input ctl-number', attrs: { type: 'text', spellcheck: 'false', placeholder: opts.placeholder ?? '' } });
+  const horizontal = opts.stepper === 'plus-minus';
+  const input = h('input', { class: 'ctl-input ctl-number', attrs: { type: 'text', spellcheck: 'false', placeholder: opts.placeholder ?? '', 'aria-label': opts.title ?? label } });
   const lab = h('label', { class: 'ctl-label scrub', text: label, title: `${opts.title ? `${opts.title} · ` : ''}Drag to adjust` });
 
   const display = (v: string) => {
@@ -76,6 +94,11 @@ export function numberControl(label: string, bind: Binding<string>, opts: Number
     return round(n);
   };
   const current = () => {
+    if (horizontal && !/^-?\d*\.?\d+$/.test(input.value.trim())) {
+      // Step from the rendered size after a CSS value such as 2em was entered.
+      const resolved = parseFloat(bind.get());
+      if (Number.isFinite(resolved)) return resolved;
+    }
     const n = parseFloat(input.value);
     return Number.isFinite(n) ? n : (opts.start?.() ?? 0);
   };
@@ -120,12 +143,18 @@ export function numberControl(label: string, bind: Binding<string>, opts: Number
     lab.addEventListener('pointerup', onUp);
   });
 
-  // Up/down buttons: one step per click, repeating while held; one undo step.
+  // Step buttons: one step per click, repeating while held; one undo step.
   const stepper = (dir: 1 | -1) => {
     const b = h('button', {
       class: 'ctl-step',
-      attrs: { type: 'button', tabindex: '-1', 'aria-label': `${dir > 0 ? 'Increase' : 'Decrease'} ${opts.title ?? label}` },
-    }, icon(dir > 0 ? 'caretUp' : 'caretDown'));
+      attrs: { type: 'button', ...(horizontal ? {} : { tabindex: '-1' }), 'aria-label': `${dir > 0 ? 'Increase' : 'Decrease'} ${opts.title ?? label}` },
+    }, icon(horizontal ? (dir > 0 ? 'plus' : 'minus') : (dir > 0 ? 'caretUp' : 'caretDown')));
+    // Pointer presses already step below; native keyboard activation fires a zero-detail click.
+    if (horizontal) b.addEventListener('click', (e) => {
+      if (e.detail !== 0) return;
+      input.value = String(clampNum(current() + dir * step * (e.shiftKey ? 10 : 1)));
+      bind.set(normalize(input.value), true);
+    });
     b.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       e.preventDefault(); // keep focus where it was
@@ -159,7 +188,9 @@ export function numberControl(label: string, bind: Binding<string>, opts: Number
     });
     return b;
   };
-  const box = h('div', { class: 'ctl-num' }, input, h('div', { class: 'ctl-steps' }, stepper(1), stepper(-1)));
+  const box = horizontal
+    ? h('div', { class: 'ctl-num ctl-num-horizontal' }, stepper(-1), input, stepper(1))
+    : h('div', { class: 'ctl-num' }, input, h('div', { class: 'ctl-steps' }, stepper(1), stepper(-1)));
 
   const wrap = opts.inline ? h('div', { class: 'ctl-inline' }, lab, box) : row(lab, box);
   const refresh = () => {
@@ -224,6 +255,7 @@ function displayColor(v: string): string {
 
 let popover: HTMLElement | null = null;
 let popoverCleanup: (() => void) | null = null;
+let colorPopoverId = 0;
 
 function closePopover(): void {
   popover?.remove();
@@ -262,25 +294,55 @@ function openColorPopover(
 ): void {
   const start = (value && value !== 'none' && resolveColor(value)) || { r: 0, g: 0, b: 0, a: 1 };
   let rgba = { ...start };
-  const picker = h('input', { class: 'pop-picker', attrs: { type: 'color', value: toHex(rgba) } });
-  const alpha = h('input', { class: 'pop-alpha', attrs: { type: 'range', min: '0', max: '100', value: String(Math.round(rgba.a * 100)) } });
-  const alphaOut = h('span', { class: 'pop-alpha-out', text: `${Math.round(rgba.a * 100)}%` });
+  const picker = h('input', { class: 'pop-picker', attrs: { type: 'color', value: toHex(rgba), 'aria-label': 'Choose colour' } });
+  const hexId = `colour-hex-${++colorPopoverId}`;
+  const hex = h('input', { class: 'ctl-input pop-hex', attrs: {
+    type: 'text', id: hexId, spellcheck: 'false', autocomplete: 'off',
+    'aria-label': 'HEX colour', placeholder: '#rrggbb',
+  } });
+  const error = h('span', { class: 'pop-hex-error', text: 'Enter a valid HEX colour, such as #16a34a.', attrs: { role: 'status' } });
+  error.hidden = true;
+
+  const sync = () => {
+    picker.value = toHex(rgba);
+    // Preserve and show transparency already present in an imported colour.
+    hex.value = toHex(rgba) + (rgba.a < 1 ? Math.round(rgba.a * 255).toString(16).padStart(2, '0') : '');
+    hex.removeAttribute('aria-invalid');
+    error.hidden = true;
+  };
+  const commitHex = () => {
+    const raw = hex.value.trim();
+    const value = raw.startsWith('#') ? raw : `#${raw}`;
+    const c = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value) ? parseColor(value) : null;
+    if (!c) {
+      hex.setAttribute('aria-invalid', 'true');
+      error.hidden = false;
+      return;
+    }
+    rgba = c;
+    sync();
+    emit(true);
+  };
+  hex.addEventListener('change', commitHex);
+  hex.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitHex();
+    }
+  });
+  hex.addEventListener('input', () => {
+    hex.removeAttribute('aria-invalid');
+    error.hidden = true;
+  });
 
   const emit = (final: boolean) => onPick(formatColor(rgba), final);
   picker.addEventListener('input', () => {
     const c = resolveColor(picker.value)!;
     rgba = { ...c, a: rgba.a || 1 };
-    alpha.value = String(Math.round(rgba.a * 100));
-    alphaOut.textContent = `${alpha.value}%`;
+    sync();
     emit(false);
   });
   picker.addEventListener('change', () => emit(true));
-  alpha.addEventListener('input', () => {
-    rgba.a = +alpha.value / 100;
-    alphaOut.textContent = `${alpha.value}%`;
-    emit(false);
-  });
-  alpha.addEventListener('change', () => emit(true));
 
   const swatches = (opts.palette?.() ?? []).map((c) =>
     h('button', {
@@ -290,9 +352,7 @@ function openColorPopover(
       on: {
         click: () => {
           rgba = resolveColor(c) ?? rgba;
-          picker.value = toHex(rgba);
-          alpha.value = String(Math.round(rgba.a * 100));
-          alphaOut.textContent = `${alpha.value}%`;
+          sync();
           emit(true);
         },
       },
@@ -317,11 +377,15 @@ function openColorPopover(
     'div',
     { class: 'popover', attrs: { role: 'dialog', 'aria-label': 'Colour picker' } },
     h('div', { class: 'pop-row' }, picker, noneBtn),
-    h('div', { class: 'pop-row' }, h('span', { class: 'pop-caption', text: 'Opacity' }), alpha, alphaOut),
+    h('div', { class: 'pop-row' }, h('label', { class: 'pop-caption', text: 'HEX', attrs: { for: hexId } }), hex),
+    error,
     swatches.length ? h('div', { class: 'pop-caption', text: 'Colours in this page' }) : null,
     swatches.length ? h('div', { class: 'pop-swatches' }, ...swatches) : null,
   );
+  sync();
   showPopover(anchor, pop, 244, 260);
+  hex.focus();
+  hex.select();
 }
 
 // ---------------------------------------------------------------- select

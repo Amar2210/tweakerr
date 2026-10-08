@@ -148,10 +148,15 @@ test('dashing a box that has lines on only two sides gives an even frame', async
   expect(sides).toEqual(Array(4).fill('dashed 1px rgb(10, 20, 30)'));
 });
 
-test('letter gap shows 0 for the font\'s own spacing, and steps from there', async ({ page }) => {
+test('simplified text controls preserve existing weight and letter spacing', async ({ page }) => {
+  await inPage(page, (d) => {
+    d.getElementById('title')!.setAttribute('style', 'font-weight: 500; letter-spacing: 0.7px');
+  });
   await select(page, '#title');
-  const gap = field(page, 'Letter gap', 'Text');
-  await expect(gap.locator('input')).toHaveValue('0');
-  await gap.getByRole('button', { name: /^Increase/ }).click();
-  expect(await inPage(page, (d) => getComputedStyle(d.getElementById('title')!).letterSpacing)).toBe('1px');
+  await expect(field(page, 'Letter gap', 'Text')).toHaveCount(0);
+  await expect(field(page, 'Weight', 'Text')).toHaveCount(0);
+  expect(await inPage(page, (d) => {
+    const css = getComputedStyle(d.getElementById('title')!);
+    return [css.fontWeight, css.letterSpacing];
+  })).toEqual(['500', '0.7px']);
 });

@@ -42,6 +42,20 @@ function errorText(err: unknown): string {
 
 // ---------------------------------------------------------------- open/save
 
+let returningHome = false;
+
+function goHome(): void {
+  if (!editor.doc) return;
+  text.commit();
+  const message = editor.dirty
+    ? 'You have unsaved changes. Leave this page and lose them to return home?'
+    : 'Leave this page and return home?';
+  if (!confirm(message)) return;
+  // The user already confirmed leaving; avoid a second beforeunload warning.
+  returningHome = true;
+  window.location.reload();
+}
+
 async function openPicked(picked: PickedFile | null): Promise<void> {
   if (!picked) return;
   if (!/\.html?$/i.test(picked.name) && !/<html|<body|<!doctype/i.test(picked.text.slice(0, 2000))) {
@@ -120,6 +134,7 @@ async function saveCopy(html = currentHtml()): Promise<void> {
 // ------------------------------------------------------------------ toolbar
 
 const commands: Record<string, () => void> = {
+  home: goHome,
   open: () => void openFile(),
   demo: () => void openDemo(),
   save: () => void save(),
@@ -284,6 +299,8 @@ function onKey(e: KeyboardEvent): void {
   }
 
   if (isTypingTarget(e.target) || text.active) return;
+  // Let buttons and checkboxes handle their native keyboard activation.
+  if ((e.key === 'Enter' || e.key === ' ') && e.target instanceof HTMLElement && e.target.closest('button, input[type="checkbox"]')) return;
   if (($('#help') as HTMLDialogElement).open) return;
 
   if (mod && key === 'z') {
@@ -412,7 +429,7 @@ window.addEventListener('drop', (e) => {
 });
 
 window.addEventListener('beforeunload', (e) => {
-  if (!editor.dirty) return;
+  if (returningHome || !editor.dirty) return;
   e.preventDefault();
   e.returnValue = '';
 });

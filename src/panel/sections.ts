@@ -9,10 +9,11 @@ import { hasSavedShape, isArrow } from '../canvas/arrow';
 import { formatColor, resolveColor } from '../util/color';
 import { addSvgTranslate, formatCssTranslate, parseCssTranslate, r2, readSvgTranslate } from '../util/geometry';
 import { prepareOffset } from '../canvas/transform';
-import { type Gradient, formatGradient, gradientLayer, headToAngle, isStop } from '../util/gradient';
+import { type Gradient, formatGradient, gradientLayer, headToAngle, isStop, parseGradient, splitTopLevel } from '../util/gradient';
 import {
   type Binding,
   type Control,
+  checkboxControl,
   colorControl,
   fontControl,
   gridControl,
@@ -30,11 +31,6 @@ export interface Section {
   title: string;
   controls: Control[];
 }
-
-const WEIGHTS = [
-  ['100', 'Thin'], ['200', 'Extra light'], ['300', 'Light'], ['400', 'Regular'], ['500', 'Medium'],
-  ['600', 'Semibold'], ['700', 'Bold'], ['800', 'Extra bold'], ['900', 'Black'],
-].map(([value, label]) => ({ value, label: `${value} · ${label}` }));
 
 const BORDER_STYLES = ['none', 'solid', 'dashed', 'dotted', 'double'].map((v) => ({ value: v, label: cap(v) }));
 
@@ -85,6 +81,9 @@ export function buildSections(editor: Editor, els: Element[]): Section[] {
   const hasText = !isSvgRoot(el) && !['img', 'hr', 'video', 'canvas', 'iframe'].includes(el.localName);
   if (hasText) sections.push(textSection(editor, el, els, css, palette));
   sections.push(fillSection(editor, el, els, css, palette));
+  if (gradientLayer(computed(el, 'background-image'))) {
+    sections.push({ title: 'Gradient', controls: gradientControls(editor, el, els, palette) });
+  }
   sections.push(layoutSection(editor, el, els, css));
   sections.push(spacingSection(css));
   sections.push(effectsSection(css));
@@ -98,16 +97,12 @@ export function buildSections(editor: Editor, els: Element[]): Section[] {
 
 /** HTML and SVG picked together: only what both understand. */
 function mixedSections(css: Css): Section[] {
-  const opacity = css('opacity');
   return [
     {
       title: 'Effects',
       controls: [
         noteControl('Boxes and shapes are selected together, so only the settings they share are shown.'),
-        sliderControl('Opacity', { min: 0, max: 100, suffix: '%' }, {
-          get: () => Math.round((parseFloat(opacity.get()) || 0) * 100),
-          set: (v, final) => opacity.set(String(r2(v / 100)), final),
-        }),
+        opacityControl(css),
       ],
     },
   ];
@@ -118,26 +113,27 @@ type Attr = (name: string) => Binding<string>;
 type Palette = () => string[];
 
 function textSection(editor: Editor, el: Element, els: Element[], css: Css, palette: Palette): Section {
+  const spacing = numberControl('Line spacing', css('line-height', {
+    read: () => {
+      const value = computed(el, 'line-height');
+      // Show font-relative spacing without changing imported pixel/percentage values.
+      if (value === 'normal') return '';
+      const size = parseFloat(computed(el, 'font-size'));
+      return size > 0 ? String(r2(parseFloat(value) / size)) : '';
+    },
+  }), { unit: '', step: 0.1, min: 0.1, start: () => 1.2, placeholder: 'Auto', title: 'Line spacing', stepper: 'plus-minus' });
   const align = css('text-align', {
     read: () => {
       const v = computed(el, 'text-align');
       return v === 'start' ? 'left' : v === 'end' ? 'right' : v;
     },
   });
-  const flag = (prop: string, on: string, off: string, test: (v: string) => boolean): Binding<boolean> => ({
-    get: () => test(computed(el, prop)),
-    set: (v) => editor.edit(`Change ${prop}`, () => els.forEach((e) => setStyle(e, prop, v ? on : off))),
-  });
   return {
     title: 'Text',
     controls: [
       fontField(editor, css),
-      gridControl('', [
-        numberControl('Size', css('font-size'), { inline: true, min: 1, title: 'Text size' }),
-        // "normal" is about 1.2 × the text size; the arrows start from there.
-        numberControl('Line', css('line-height'), { inline: true, min: 0, title: 'Line height', start: () => Math.round((parseFloat(computed(el, 'font-size')) || 16) * 1.2) }),
-      ]),
-      selectControl('Weight', WEIGHTS, css('font-weight')),
+      textSizeControl('Size', css),
+      spacing,
       colorControl('Colour', css('color'), { palette }),
       segmentedControl('Align', [
         { value: 'left', label: '⇤', title: 'Align left' },
@@ -145,17 +141,26 @@ function textSection(editor: Editor, el: Element, els: Element[], css: Css, pale
         { value: 'right', label: '⇥', title: 'Align right' },
         { value: 'justify', label: '☰', title: 'Justify' },
       ], align),
-      togglesControl('Style', [
-        { label: 'B', title: 'Bold', className: 'b', bind: flag('font-weight', '700', '400', (v) => +v >= 600) },
-        { label: 'I', title: 'Italic', className: 'i', bind: flag('font-style', 'italic', 'normal', (v) => v === 'italic') },
-        { label: 'U', title: 'Underline', className: 'u', bind: flag('text-decoration-line', 'underline', 'none', (v) => v.includes('underline')) },
-        { label: 'AA', title: 'Uppercase', bind: flag('text-transform', 'uppercase', 'none', (v) => v === 'uppercase') },
-      ]),
-      numberControl('Letter gap', css('letter-spacing', { read: () => (computed(el, 'letter-spacing') === 'normal' ? '0px' : computed(el, 'letter-spacing')) }), {
-        title: "Extra space between letters (0 = the font's own spacing)",
-      }),
+      textStyleControl(editor, el, els),
     ],
   };
+}
+
+function textSizeControl(label: string, css: Css): Control {
+  return numberControl(label, css('font-size'), { min: 1, title: 'Font size', stepper: 'plus-minus' });
+}
+
+function textStyleControl(editor: Editor, el: Element, els: Element[]): Control {
+  const flag = (prop: string, on: string, off: string, test: (v: string) => boolean): Binding<boolean> => ({
+    get: () => test(computed(el, prop)),
+    set: (v) => editor.edit(`Change ${prop}`, () => els.forEach((e) => setStyle(e, prop, v ? on : off))),
+  });
+  return togglesControl('Style', [
+    { label: 'B', title: 'Bold', className: 'b', bind: flag('font-weight', '700', '400', (v) => +v >= 600) },
+    { label: 'I', title: 'Italic', className: 'i', bind: flag('font-style', 'italic', 'normal', (v) => v === 'italic') },
+    { label: 'U', title: 'Underline', className: 'u', bind: flag('text-decoration-line', 'underline', 'none', (v) => v.includes('underline')) },
+    { label: 'AA', title: 'Uppercase', bind: flag('text-transform', 'uppercase', 'none', (v) => v === 'uppercase') },
+  ]);
 }
 
 /**
@@ -189,16 +194,9 @@ function startingGradient(el: Element): string {
  * Gradient editor: type, angle and one colour per stop. A gradient is drawn
  * over the fill colour, so without this, changing Fill would seem to do nothing.
  */
-function gradientControls(editor: Editor, el: Element, els: Element[], css: Css, palette: Palette): Control[] {
-  const bg = computed(el, 'background-image');
-  const found = gradientLayer(bg);
-  const image = css('background-image', { write: (e) => setStyle(e, 'background-image', startingGradient(e)) });
-  if (!found) {
-    if (bg !== 'none') {
-      return [noteControl('An image is drawn over the fill colour.', { label: 'Remove it', run: () => css('background-image').set('none', true) })];
-    }
-    return [buttonsControl([{ label: 'Make it a gradient', title: 'Blend from this fill colour to a darker shade', run: () => image.set('', true) }])];
-  }
+function gradientControls(editor: Editor, el: Element, els: Element[], palette: Palette): Control[] {
+  const found = gradientLayer(computed(el, 'background-image'));
+  if (!found) return [];
 
   const key = els.map(elementKey).join('+');
   const live = (): Gradient => gradientLayer(computed(el, 'background-image'))?.gradient ?? found.gradient;
@@ -215,8 +213,7 @@ function gradientControls(editor: Editor, el: Element, els: Element[], css: Css,
     }, merge);
 
   const controls: Control[] = [
-    noteControl('A gradient is drawn over the fill colour. Change its colours here.'),
-    selectControl('Gradient', [
+    selectControl('Type', [
       { value: 'linear', label: 'Linear' },
       { value: 'radial', label: 'Radial' },
       { value: 'conic', label: 'Conic' },
@@ -230,17 +227,21 @@ function gradientControls(editor: Editor, el: Element, els: Element[], css: Css,
         }),
     }),
   ];
-  if (found.gradient.kind === 'linear') {
-    controls.push(
-      numberControl('Angle', {
-        get: () => {
-          const a = headToAngle(live().head);
-          return a === null ? '' : String(a);
-        },
-        set: (v) => update('Gradient angle', (g) => void (g.head = `${parseFloat(v) || 0}deg`), `${key}:gradient-angle`),
-      }, { unit: '', step: 5 }),
-    );
-  }
+  const angle = numberControl('Angle', {
+    get: () => {
+      const a = headToAngle(live().head);
+      return a === null ? '' : String(a);
+    },
+    set: (v) => update('Gradient angle', (g) => void (g.head = `${parseFloat(v) || 0}deg`), `${key}:gradient-angle`),
+  }, { unit: '', step: 5 });
+  controls.push({
+    el: angle.el,
+    refresh: () => {
+      angle.el.hidden = live().kind !== 'linear';
+      angle.refresh();
+    },
+  });
+  angle.el.hidden = live().kind !== 'linear';
   found.gradient.items.filter(isStop).forEach((_, i) => {
     controls.push(
       colorControl(`Colour ${i + 1}`, {
@@ -276,15 +277,35 @@ function gradientControls(editor: Editor, el: Element, els: Element[], css: Css,
             while (g.items.length && !isStop(g.items[g.items.length - 1])) g.items.pop();
           }),
       },
-      { label: 'Remove gradient', danger: true, run: () => css('background-image').set('none', true) },
     ]),
   );
   return controls;
 }
 
 function fillSection(editor: Editor, el: Element, els: Element[], css: Css, palette: Palette): Section {
-  const controls: Control[] = [colorControl('Fill', css('background-color'), { none: 'transparent', palette })];
-  controls.push(...gradientControls(editor, el, els, css, palette));
+  const controls: Control[] = [
+    colorControl('Fill', css('background-color'), { none: 'transparent', palette }),
+    checkboxControl('Gradient', {
+      get: () => !!gradientLayer(computed(el, 'background-image')),
+      set: (enabled) => editor.edit(enabled ? 'Enable gradient' : 'Disable gradient', () => {
+        for (const e of els) {
+          const bg = computed(e, 'background-image');
+          if (enabled) {
+            if (!gradientLayer(bg)) {
+              setStyle(e, 'background-image', startingGradient(e) + (bg === 'none' ? '' : `, ${bg}`));
+            }
+          } else {
+            const layers = splitTopLevel(bg).filter((layer) => !parseGradient(layer));
+            setStyle(e, 'background-image', layers.join(', ') || 'none');
+          }
+        }
+      }),
+    }),
+  ];
+  const bg = computed(el, 'background-image');
+  if (bg !== 'none' && !gradientLayer(bg)) {
+    controls.push(noteControl('An image is drawn over the fill colour.', { label: 'Remove it', run: () => css('background-image').set('none', true) }));
+  }
   // The fields show the border's main (widest) side: a grid cell may only have one on the right and bottom.
   const side = () => shownSides(el)[0] ?? 'top';
   const borderWidth = css('border-width', {
@@ -427,15 +448,19 @@ function spacingSection(css: Css): Section {
   return { title: 'Spacing', controls: [four('padding'), four('margin')] };
 }
 
-function effectsSection(css: Css): Section {
+function opacityControl(css: Css): Control {
   const opacity = css('opacity');
+  return sliderControl('Opacity', { min: 0, max: 100, suffix: '%' }, {
+    get: () => Math.round((parseFloat(opacity.get()) || 0) * 100),
+    set: (v, final) => opacity.set(String(r2(v / 100)), final),
+  });
+}
+
+function effectsSection(css: Css): Section {
   return {
     title: 'Effects',
     controls: [
-      sliderControl('Opacity', { min: 0, max: 100, suffix: '%' }, {
-        get: () => Math.round((parseFloat(opacity.get()) || 0) * 100),
-        set: (v, final) => opacity.set(String(r2(v / 100)), final),
-      }),
+      opacityControl(css),
       selectControl('Shadow', SHADOWS, shadowPreset(css('box-shadow'))),
     ],
   };
@@ -513,7 +538,7 @@ function pageSections(editor: Editor, el: Element, css: Css, palette: Palette): 
         colorControl('Background', css('background-color'), { none: 'transparent', palette }),
         colorControl('Text', css('color'), { palette }),
         fontField(editor, css),
-        numberControl('Font size', css('font-size'), { min: 1 }),
+        textSizeControl('Font size', css),
       ],
     },
     spacingSection(css),
@@ -539,13 +564,6 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
       { value: 'round', label: 'Round' },
       { value: 'square', label: 'Square' },
     ], css('stroke-linecap')),
-  );
-  const opacity = css('opacity');
-  shape.push(
-    sliderControl('Opacity', { min: 0, max: 100, suffix: '%' }, {
-      get: () => Math.round((parseFloat(opacity.get()) || 0) * 100),
-      set: (v, final) => opacity.set(String(r2(v / 100)), final),
-    }),
   );
   sections.push({ title: el.localName === 'text' ? 'Text colour' : 'Shape', controls: shape });
 
@@ -651,8 +669,8 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
     }
     text.push(
       fontField(editor, css),
-      numberControl('Size', css('font-size'), { min: 1 }),
-      selectControl('Weight', WEIGHTS, css('font-weight')),
+      textSizeControl('Size', css),
+      textStyleControl(editor, el, els),
       selectControl('Anchor', [
         { value: 'start', label: 'Start' },
         { value: 'middle', label: 'Middle' },
@@ -662,6 +680,7 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
     sections.push({ title: 'Text', controls: text });
   }
 
+  sections.push({ title: 'Effects', controls: [opacityControl(css)] });
   if (!multi) sections.push(customSection(editor, el));
   return sections;
 }

@@ -115,6 +115,9 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-weight: 700;
   font-size: 14px;
   margin-right: 6px;
@@ -603,7 +606,7 @@ body:not(.has-doc) .zoom-label {
 
 .ctl-row {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 90px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   min-height: 30px;
@@ -611,6 +614,10 @@ body:not(.has-doc) .zoom-label {
 
 .ctl-row-full {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.ctl-row[hidden] {
+  display: none;
 }
 
 .ctl-label {
@@ -635,6 +642,15 @@ body:not(.has-doc) .zoom-label {
 .ctl-body > * {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.ctl-body > .ctl-checkbox {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .ctl-input {
@@ -775,6 +791,37 @@ body:not(.has-doc) .zoom-label {
   stroke-width: 3.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.ctl-num-horizontal {
+  height: 30px;
+}
+
+.ctl-num-horizontal .ctl-step {
+  flex: 0 0 30px;
+  color: var(--text-2);
+}
+
+.ctl-num-horizontal .ctl-step:first-child {
+  border-right: 1px solid var(--line);
+}
+
+.ctl-num-horizontal .ctl-step:last-child {
+  border-left: 1px solid var(--line);
+}
+
+.ctl-num-horizontal .ctl-step svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.ctl-num-horizontal .ctl-input {
+  height: 28px;
+  min-width: 0;
+  padding: 0 4px;
+  text-align: center;
+  font-weight: 600;
 }
 
 .ctl-number {
@@ -1019,15 +1066,19 @@ body:not(.has-doc) .zoom-label {
   font-size: 11px;
 }
 
-.pop-alpha {
+.pop-hex {
   flex: 1;
-  accent-color: var(--accent);
+  min-width: 0;
+  font-family: ui-monospace, monospace;
 }
 
-.pop-alpha-out {
-  width: 38px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.pop-hex[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.pop-hex-error {
+  color: var(--danger);
+  font-size: 11px;
 }
 
 .pop-swatches {
