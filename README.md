@@ -16,6 +16,8 @@ No code editor, no asking the AI again for a one-pixel nudge.
 
 ## Get it
 
+**Current version: v0.4.0.**
+
 - **Use it in your browser:** open **https://amar2210.github.io/tweakerr/**. It is always the latest version.
 - **Download it for offline use:** [**tweakerr.html**](https://github.com/Amar2210/tweakerr/releases/latest/download/tweakerr.html). This link always gives the newest release. Double-click the downloaded file to open it in Chrome or Edge. It needs no install and no internet. To update, download it again and replace the old file.
 
@@ -30,6 +32,8 @@ Either way, the pages you edit stay on your computer. Tweakerr opens and saves t
 
 In Chrome and Edge, Ctrl+S writes straight back to the file you opened (the browser asks for permission the first time). In other browsers, or with a dropped file that the browser won't let Tweakerr write to, Save downloads the edited copy.
 
+Click the **Tweakerr logo** to return home. With a page open, Tweakerr asks you to confirm before leaving and warns if there are unsaved changes. Cancel keeps your page, selection and undo history. Refreshing the browser also warns about unsaved changes.
+
 ## What you can do
 
 | | |
@@ -40,22 +44,24 @@ In Chrome and Edge, Ctrl+S writes straight back to the file you opened (the brow
 | **Edit them together** | With several selected, every change in the panel applies to all of them, and dragging, arrow keys, delete, duplicate and hide act on the whole group. It's still one undo step. |
 | **Move** | Drag it. It snaps into line with its neighbours (pink guides). **Shift** keeps it in a straight line, **Alt** turns snapping off, and **arrow keys** nudge by 1px (**Shift** for 10px). |
 | **Resize** | Drag the handles. **Shift** keeps the proportions. Works on boxes, SVG rectangles, circles and ellipses. |
-| **Colours** | Text, background, border, SVG fill and stroke. The picker offers the colours your page already uses. |
-| **Gradients** | A gradient background gets its own editor: one colour per stop, the angle, and linear/radial/conic. Add or remove colours, remove the gradient, or turn a plain fill into one with **Make it a gradient**. |
+| **Colours** | Text, background, border, SVG fill and stroke. Click a swatch to open the picker: the **HEX** field is directly below the colour preview and ready to type or paste. Apply with **Enter** or by leaving the field. Codes work with or without `#`, including short forms such as `#abc`. The picker also offers the colours your page already uses. |
+| **Gradients** | Tick **Gradient** in **Fill & border** to show a separate **Gradient** section. Choose **Linear**, **Radial** or **Conic**, edit each colour stop, and adjust the angle for linear gradients. Add or remove colours; untick the checkbox to remove the gradient while keeping other background image layers. Imported gradients are already checked. |
 | **Borders** | Width, style (solid, dashed, dotted…), colour and corner radius. A box with lines on only some sides (a grid cell's right and bottom) becomes one even frame when you change its style. |
 | **Arrows** | Line colour, width, dashes and line ends, plus the **arrowhead colour**. When several arrows share one arrowhead, Tweakerr copies it for the arrows you change, so the others stay as they were. If you've selected every arrow that uses it, it's recoloured in place. |
 | **Reshape arrows** | A selected arrow (an SVG line or curve) shows three dots. Drag the **tail** or **head** dot to reconnect it: near a box it snaps onto the box's edge, most readily the middle of a side (**Alt** turns the magnet off). Drag the **middle** dot to bend it into a curve; drag it back near the straight line and it snaps straight. |
-| **Text** | Double-click to type in place. Also size, weight, alignment, bold, italic, underline and uppercase. |
+| **Text** | Double-click HTML text to type in place. For SVG labels, use the **Text** field in the right panel. Set a numeric **Size** with **− / +** buttons, then adjust alignment, bold, italic, underline and uppercase. HTML text also has numeric **Line spacing** with **− / +** buttons. The text fields share one alignment; separate weight and letter-gap controls have been removed. |
 | **Fonts** | The font field shows a single name. Its list offers the fonts your page uses, common fonts found on most computers, and CSS's basic kinds, each drawn in its own typeface. Tweakerr adds a matching fallback (e.g. `Georgia, serif`) so the text still looks right on machines without the font. |
-| **Effects** | Opacity, shadow and layer order (z-index). |
+| **Effects** | **Opacity** for HTML elements and SVG shapes, plus shadows for HTML elements. Opacity lives here rather than in the colour picker. Layer order (z-index) is in **Size & position**. |
 | **Spacing** | Padding and margin. |
 | **Page** | Background, text colour and font for the whole page. |
 | **Other** | Duplicate (**Ctrl+D**), delete (**Del**), hide/show, link targets, image source and alt text, and a raw "Custom CSS" box for anything else. |
-| **Number fields** | Type a value, use the small up/down buttons next to it (hold to repeat), press **↑/↓**, or drag the field's name. **Shift** steps ×10. |
+| **Number fields** | Type a value, use **− / +** for text size and line spacing or the small up/down buttons for other properties, press **↑/↓**, or drag the field's name. Hold a button to repeat. **Shift** steps ×10. |
 | **Undo** | **Ctrl+Z** / **Ctrl+Shift+Z**. A whole drag, or a whole typing session, is one step. |
 | **Preview widths** | Desktop, tablet and phone widths, plus zoom (**Ctrl + wheel**). |
 
 Press **?** in Tweakerr for all shortcuts.
+
+**Line spacing** is a multiplier of the text size: `1.5` means a line height of 1.5 times the font size. **Auto** keeps the font's default spacing; clear the field to return to it. Opening a file preserves its existing sizes, line heights, font weights, letter spacing and colour transparency until you change them. Invalid HEX codes show an error and leave the page unchanged.
 
 ## Pages drawn by code
 
@@ -93,7 +99,7 @@ On an ordinary page, every change is saved as an inline `style` (or an SVG attri
 
 If your stylesheet uses `!important` for a property you change, Tweakerr adds `!important` to your edit too, so the change actually shows.
 
-## Limits (v0.3)
+## Limits (v0.4.0)
 
 - **Files that load other files.** Scripts, images or stylesheets referenced by relative paths (`app.js`, `styles/main.css`, `img/logo.png`) don't load, because Tweakerr sees only the file itself. Tweakerr warns you when a page's script is in another file. Single-file pages and links to the web (`https://…`) are fine.
 - **Pages drawn by code** have the limits listed in [Pages drawn by code](#pages-drawn-by-code).
@@ -113,6 +119,11 @@ npm run check        # type-check + unit tests + browser tests
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how the code is organised and how to run the tests.
+
+## Contributors
+
+- [Amar2210](https://github.com/Amar2210) — project owner.
+- [OpenAI Codex](https://openai.com/codex/) — assisted with home confirmation and improvements to typography, gradient, HEX colour and opacity controls, including browser tests and deployment verification.
 
 ## Licence
 

@@ -1,6 +1,6 @@
 {
   "name": "tweakerr",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Click-to-edit visual editor for static HTML files. Tweak borders, colours, arrows and layout without touching code.",
   "type": "module",
   "license": "MIT",
