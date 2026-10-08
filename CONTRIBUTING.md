@@ -88,17 +88,27 @@ GitHub Actions does the building and publishing (`.github/workflows/`):
 
 To make a release:
 
+Use three-part semantic versions: **MAJOR.MINOR.PATCH**. Git tags include a `v` prefix, while `package.json` and `package-lock.json` contain the same version without it. The current release is `v0.4.0`.
+
+| Change | Example next version from `0.4.0` |
+|---|---|
+| Bug fix with no breaking changes | `0.4.1` |
+| New feature with no breaking changes | `0.5.0` |
+| Breaking change | `1.0.0` |
+
+Reset PATCH to zero when MINOR increases; reset MINOR and PATCH to zero when MAJOR increases. Documentation-only updates do not require a new release. Never reuse a published release tag.
+
 1. Run `npm run check`.
-2. Bump the version: `npm version 0.3.0 --no-git-tag-version`. This updates `package.json` and `package-lock.json`. Commit it.
+2. Choose the next version, then bump it: for example, `npm version 0.4.1 --no-git-tag-version` for a bug fix. This updates `package.json` and `package-lock.json`. Update the current version in the README and commit the changes.
 3. Tag it. The tag's message becomes the release notes:
 
    ```sh
-   git tag -a v0.3.0 -m "Tweakerr 0.3.0
+   git tag -a v0.4.1 -m "Tweakerr v0.4.1
 
    - What's new, one line each"
    ```
 
-4. Push both: `git push origin main` and then `git push origin v0.3.0`.
+4. Push the commit and tag together: `git push --atomic origin main v0.4.1`.
 
 The release job stops if the tag doesn't match `package.json`, so a forgotten bump is caught. Keep the attached file named `tweakerr.html`, or the "latest" download link breaks.
 

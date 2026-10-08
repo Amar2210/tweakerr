@@ -23,6 +23,8 @@ No code editor, no asking the AI again for a one-pixel nudge.
 
 Either way, the pages you edit stay on your computer. Tweakerr opens and saves them inside your browser and never uploads them.
 
+Releases use three-part versions: **MAJOR.MINOR.PATCH** (for example, `v0.4.0`). Bug fixes increase PATCH (`v0.4.1`), new features increase MINOR (`v0.5.0`), and breaking changes increase MAJOR (`v1.0.0`). See [release guidelines](CONTRIBUTING.md#releasing).
+
 ## Quick start
 
 1. Open Tweakerr (see [Get it](#get-it)) in **Chrome or Edge**.
