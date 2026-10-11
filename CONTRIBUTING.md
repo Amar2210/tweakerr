@@ -36,6 +36,7 @@ src/canvas/
   textedit.ts          typing in place
 src/doc/
   history.ts           undo/redo, recorded with a MutationObserver
+  changelog.ts         saved comment with immutable before/after edit records
   serialize.ts         document -> HTML file
   style.ts             read computed styles, write inline styles (or live rules)
   live.ts              live pages: edits as style rules keyed by selector, text swaps
@@ -58,7 +59,7 @@ On a live page, `setStyle`/`setAttr` write into one `<style id="tweakerr-edits">
 
 ## Rules that keep saved files clean
 
-1. **Never draw editor UI inside the page.** Selection boxes, handles, labels and guides all live in the overlay, in the editor's own document. Serialising the page must give back the user's file plus their edits and nothing else.
+1. **Never draw editor UI inside the page.** Selection boxes, handles, labels and guides all live in the overlay, in the editor's own document. Serialising the page must give back the user's file plus their edits. Saving also prefixes the separately managed change-log comment; it must never be inserted into the editable DOM.
 2. **Every change goes through `editor.edit(label, fn, mergeKey?)`** (or `history.begin/end` for gestures). That is what makes it undoable. A change made outside a transaction won't be undone, and may silently end up in the saved file.
 3. **Temporary attributes stay outside transactions.** Example: the `contenteditable` that text editing needs is added before `begin()` and removed after `end()`.
 4. **Watch for cross-frame objects.** Page nodes come from the iframe's window, so `el instanceof HTMLElement` is false for them. Check `namespaceURI` or `localName` instead.
@@ -88,7 +89,7 @@ GitHub Actions does the building and publishing (`.github/workflows/`):
 
 To make a release:
 
-Use three-part semantic versions: **MAJOR.MINOR.PATCH**. Git tags include a `v` prefix, while `package.json` and `package-lock.json` contain the same version without it. The current release is `v0.4.0`.
+Use three-part semantic versions: **MAJOR.MINOR.PATCH**. Git tags include a `v` prefix, while `package.json` and `package-lock.json` contain the same version without it. The current release is `v0.5.0`.
 
 | Change | Example next version from `0.4.0` |
 |---|---|
@@ -113,6 +114,8 @@ Reset PATCH to zero when MINOR increases; reset MINOR and PATCH to zero when MAJ
 The release job stops if the tag doesn't match `package.json`, so a forgotten bump is caught. Keep the attached file named `tweakerr.html`, or the "latest" download link breaks.
 
 ## Notes for WSL / machines without sudo
+
+The development server polls for file changes in WSL, so edits made from Windows are reflected at `http://localhost:5173/tweakerr.html`. To test the served preview instead of the built file, set `TWEAKERR_URL` when running Playwright. Link regression tests cover every link in a supplied file when `TWEAKERR_LINK_FILE` is set.
 
 **Chromium won't start** (`libnspr4.so: cannot open shared object file`). If you can't `sudo npx playwright install-deps`, unpack the three missing libraries into your home folder:
 

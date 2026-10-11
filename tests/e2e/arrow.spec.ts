@@ -119,6 +119,7 @@ test.describe('on a page drawn by code', () => {
     await page.evaluate(() => (window as any).tweakerr.editor.win.dispatchEvent(new Event('resize')));
     await page.waitForTimeout(400);
     expect(await shape()).toBe(drawn);
+    await page.getByRole('tab', { name: 'Arrange', exact: true }).click();
     await expect(page.locator('#props .ctl-note', { hasText: "You've reshaped this arrow" })).toBeVisible();
 
     const saved = await saveViaDownload(page);

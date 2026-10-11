@@ -1,4 +1,3 @@
-import './styles/editor.css';
 import demoHtml from './demo.html?raw';
 import { DEVICE_WIDTH, Editor, type Device } from './editor';
 import { Stage } from './canvas/stage';
@@ -10,6 +9,7 @@ import { LayersPanel } from './panel/layers';
 import { deleteSelected, duplicateSelected, nudgeSelected, selectFirstChild, selectParent, selectSiblings } from './doc/actions';
 import { describe, isStructural, isTextEditable } from './doc/kinds';
 import { serializeDocument } from './doc/serialize';
+import { writeChangeLog } from './doc/changelog';
 import { canSaveInPlace, download, fromDrop, pickFile, saveAs, saveToHandle, type PickedFile } from './io/files';
 import { $, h, isTypingTarget } from './util/dom';
 import { icon } from './util/icons';
@@ -19,7 +19,7 @@ const canvas = $('#canvas');
 const editor = new Editor(frame);
 const stage = new Stage(editor, canvas, $('#stage'), frame);
 const overlay = new Overlay(editor, stage, $('#overlay'));
-const text = new TextEditor(editor, stage, (e) => onKey(e));
+const text = new TextEditor(editor, stage);
 new Pointer(editor, stage, overlay, text);
 new PropertiesPanel(editor, $('#props'));
 new LayersPanel(editor, $('#layers'));
@@ -85,8 +85,8 @@ async function openDemo(): Promise<void> {
 function currentHtml(): string | null {
   text.commit();
   if (!editor.doc || !editor.file) return null;
-  if (editor.live) return editor.live.save();
-  return serializeDocument(editor.doc, { trailingNewline: editor.file.trailingNewline });
+  const html = editor.live ? editor.live.save() : serializeDocument(editor.doc, { trailingNewline: editor.file.trailingNewline });
+  return writeChangeLog(html, [...(editor.file.changes ?? []), ...(editor.history?.changes ?? [])]);
 }
 
 async function save(): Promise<void> {
@@ -281,22 +281,26 @@ editor.on('load', () => $('#empty').setAttribute('hidden', ''));
 
 // ---------------------------------------------------------------- keyboard
 
+function onFileKey(e: KeyboardEvent): void {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const key = e.key.toLowerCase();
+  if (key !== 's' && key !== 'o') return;
+
+  // Iframe key events never bubble to the editor window. Capture file shortcuts
+  // in both windows, even outside text editing, to prevent browser Save Webpage.
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (e.repeat) return;
+  text.commit();
+  commands[key === 'o' ? 'open' : e.shiftKey ? 'save-as' : 'save']();
+}
+
+window.addEventListener('keydown', onFileKey, true);
+editor.on('load', () => editor.win?.addEventListener('keydown', onFileKey, true));
+
 function onKey(e: KeyboardEvent): void {
   const mod = e.ctrlKey || e.metaKey;
   const key = e.key.toLowerCase();
-
-  // File shortcuts work everywhere, even while typing in a panel field.
-  if (mod && key === 's') {
-    e.preventDefault();
-    if (e.shiftKey) void saveCopy();
-    else void save();
-    return;
-  }
-  if (mod && key === 'o') {
-    e.preventDefault();
-    void openFile();
-    return;
-  }
 
   if (isTypingTarget(e.target) || text.active) return;
   // Let buttons and checkboxes handle their native keyboard activation.

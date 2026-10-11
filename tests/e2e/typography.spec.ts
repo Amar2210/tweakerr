@@ -1,3 +1,4 @@
+import { readChangeLog } from '../../src/doc/changelog';
 import { expect, test, type Page } from '@playwright/test';
 import { domDiff, field, launch, openFile, readFixture, saveViaDownload, select, setField, trackErrors } from './helpers';
 
@@ -13,6 +14,7 @@ test('numeric text controls preserve imported sizes and default line spacing', a
   await launch(page);
   await openFile(page, 'board.html');
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   const size = field(page, 'Size', 'Text');
   await expect(size.locator('input')).toHaveValue('28');
   await expect(size.locator('select')).toHaveCount(0);
@@ -23,11 +25,13 @@ test('numeric text controls preserve imported sizes and default line spacing', a
   expect(input!.x + input!.width).toBeLessThanOrEqual(plus!.x);
   await expect(field(page, 'Line spacing', 'Text').locator('input')).toHaveValue('');
   await expect(field(page, 'Line spacing', 'Text').locator('input')).toHaveAttribute('placeholder', 'Auto');
-  const fields = ['Font', 'Size', 'Line spacing', 'Colour', 'Align', 'Style', 'Gradient'];
+  const fields = ['Font', 'Size', 'Line spacing', 'Colour', 'Align', 'Style'];
   const positions = await Promise.all(fields.map(async (label) => {
     const section = label === 'Gradient' ? 'Fill & border' : 'Text';
     return (await field(page, label, section).locator('.ctl-body').boundingBox())!.x;
   }));
+  await page.getByRole('tab', { name: 'Style', exact: true }).click();
+  positions.push((await field(page, 'Gradient', 'Fill & border').locator('.ctl-body').boundingBox())!.x);
   expect(new Set(positions).size).toBe(1);
   expect(await computed(page, '#title', 'font-size')).toBe('28px');
   expect(await domDiff(page, ORIGINAL, await saveViaDownload(page))).toEqual([]);
@@ -38,6 +42,7 @@ test('typing a font size overrides important CSS, supports undo, and saves only 
   const original = ORIGINAL.replace('font-size: 28px;', 'font-size: 28px !important;');
   await page.evaluate(async (html) => (window as any).tweakerr.stage.mount(html, 'important.html', null), original);
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await setField(page, 'Size', '20', 'Text');
   expect(await computed(page, '#title', 'font-size')).toBe('20px');
   await page.locator('[data-cmd="undo"]').click();
@@ -48,6 +53,7 @@ test('typing a font size overrides important CSS, supports undo, and saves only 
   expect(await domDiff(page, original, saved)).toEqual(['html>body[1]>div[0]>h1#title[0] @style: ∅ -> "font-size: 20px !important;"']);
   await page.evaluate(async (html) => (window as any).tweakerr.stage.mount(html, 'saved.html', null), saved);
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await expect(field(page, 'Size', 'Text').locator('input')).toHaveValue('20');
 });
 
@@ -56,6 +62,7 @@ test('numeric line spacing scales with text size and survives save and reopen', 
   const original = ORIGINAL.replace('font-size: 28px;', 'font-size: 28px; line-height: 35px;');
   await page.evaluate(async (html) => (window as any).tweakerr.stage.mount(html, 'spacing.html', null), original);
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   const spacing = field(page, 'Line spacing', 'Text').locator('input');
   expect(await field(page, 'Line spacing', 'Text').locator('.ctl-label').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   await expect(spacing).toHaveValue('1.25');
@@ -68,6 +75,7 @@ test('numeric line spacing scales with text size and survives save and reopen', 
   expect(await domDiff(page, original, saved)).toEqual(['html>body[1]>div[0]>h1#title[0] @style: ∅ -> "line-height: 1.5; font-size: 24px;"']);
   await page.evaluate(async (html) => (window as any).tweakerr.stage.mount(html, 'saved.html', null), saved);
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await expect(field(page, 'Line spacing', 'Text').locator('input')).toHaveValue('1.5');
   await setField(page, 'Size', '14', 'Text');
   expect(await computed(page, '#title', 'line-height')).toBe('21px');
@@ -83,6 +91,7 @@ test('font size buttons apply to every selected item and leave other text unchan
     const { editor } = (window as any).tweakerr;
     editor.setSelection([editor.doc.querySelector('#box-a h2'), editor.doc.querySelector('#box-b h2')]);
   });
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await field(page, 'Size', 'Text').getByRole('button', { name: 'Increase Font size' }).click();
   expect(await computed(page, '#box-a h2', 'font-size')).toBe('19px');
   expect(await computed(page, '#box-b h2', 'font-size')).toBe('19px');
@@ -97,6 +106,7 @@ test('SVG text uses numeric size and style buttons that survive a live redraw an
   await launch(page);
   await openFile(page, 'drawn.html');
   await select(page, '#wires text.lbl');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await expect(field(page, 'Size', 'Text').locator('input')).toHaveValue('11');
   await expect(field(page, 'Weight', 'Text')).toHaveCount(0);
   await field(page, 'Size', 'Text').getByRole('button', { name: 'Increase Font size' }).click();
@@ -112,11 +122,12 @@ test('SVG text uses numeric size and style buttons that survive a live redraw an
   expect(await computed(page, '#wires text.lbl', 'text-decoration-line')).toBe('underline');
   const saved = await saveViaDownload(page);
   const block = /<style id="tweakerr-edits">[\s\S]*?<\/style>\n/;
-  expect(saved.replace(block, '')).toBe(readFixture('drawn.html'));
+  expect(readChangeLog(saved).source.replace(block, '')).toBe(readFixture('drawn.html'));
   expect(saved).toContain('font-size: 14px !important;');
   expect(saved).toContain('font-weight: 700 !important;');
   await page.evaluate(async (html) => (window as any).tweakerr.stage.mount(html, 'saved.html', null), saved);
   await select(page, '#wires text.lbl');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await expect(field(page, 'Size', 'Text').locator('input')).toHaveValue('14');
   await expect(field(page, 'Style', 'Text').getByTitle('Bold', { exact: true })).toHaveAttribute('aria-pressed', 'true');
   expect(errors).toEqual([]);
@@ -125,7 +136,7 @@ test('SVG text uses numeric size and style buttons that survive a live redraw an
 test('page font size uses the same numeric controls', async ({ page }) => {
   await launch(page);
   await openFile(page, 'board.html');
-  await setField(page, 'Font size', '12', 'Page');
+  await setField(page, 'Font size', '12', 'Text');
   expect(await computed(page, 'body', 'font-size')).toBe('12px');
   expect(await domDiff(page, ORIGINAL, await saveViaDownload(page))).toEqual(['html>body[1] @style: ∅ -> "font-size: 12px;"']);
 });
@@ -134,6 +145,7 @@ test('plus and minus support keyboard activation, hold repeat, release and undo'
   await launch(page);
   await openFile(page, 'board.html');
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   const size = field(page, 'Size', 'Text');
   const plus = size.getByRole('button', { name: 'Increase Font size' });
   const minus = size.getByRole('button', { name: 'Decrease Font size' });
@@ -160,6 +172,7 @@ test('default line spacing changes only when adjusted and can be reset', async (
   await launch(page);
   await openFile(page, 'board.html');
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   const spacing = field(page, 'Line spacing', 'Text');
   await spacing.getByRole('button', { name: 'Increase Line spacing' }).click();
   await expect(spacing.locator('input')).toHaveValue('1.3');
@@ -175,6 +188,7 @@ test('size buttons step from the rendered size after a relative CSS value', asyn
   await launch(page);
   await openFile(page, 'board.html');
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await setField(page, 'Size', '2em', 'Text');
   expect(await computed(page, '#title', 'font-size')).toBe('32px');
   await field(page, 'Size', 'Text').getByRole('button', { name: 'Increase Font size' }).click();

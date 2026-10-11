@@ -4,19 +4,19 @@
 
 <h1 align="center">Tweakerr</h1>
 
-**Click-to-edit for HTML files.** Open an `.html` page (the kind an AI assistant writes for you), click a box, and change it: border, colours, arrow colour, size, position, opacity, spacing, text. Select several things, or "all like this", and change them together. Save, and you get the same file back with just those changes.
+**Click-to-edit for HTML files.** Open an `.html` page (the kind an AI assistant writes for you), click a box, and change it: border, colours, arrow colour, size, position, opacity, spacing, text. Select several things, or "all like this", and change them together. Save, and you get the same file back with your edits and a change log in an HTML comment.
 
 No code editor, no asking the AI again for a one-pixel nudge.
 
 - **One file, fully offline.** Tweakerr is a single `tweakerr.html`. Open it in Chrome or Edge. Your page never leaves your computer.
-- **Clean output.** The saved file is your file plus your edits. Nothing else changes. Tweakerr's selection boxes and handles are drawn on a separate layer and never go into your page.
+- **Clean output.** The saved file is your file plus your edits and a change-log comment. Tweakerr's selection boxes and handles are drawn on a separate layer and never go into your page.
 - **Works with pages drawn by code.** If your page builds its boxes and arrows with a script (a diagram made from a data list, say), Tweakerr runs it, lets you click and change what it draws, and saves your changes without touching the code. See [Pages drawn by code](#pages-drawn-by-code).
 
 > Made with Claude.
 
 ## Get it
 
-**Current version: v0.4.0.**
+**Current version: v0.5.0.**
 
 - **Use it in your browser:** open **https://amar2210.github.io/tweakerr/**. It is always the latest version.
 - **Download it for offline use:** [**tweakerr.html**](https://github.com/Amar2210/tweakerr/releases/latest/download/tweakerr.html). This link always gives the newest release. Double-click the downloaded file to open it in Chrome or Edge. It needs no install and no internet. To update, download it again and replace the old file.
@@ -29,7 +29,7 @@ Releases use three-part versions: **MAJOR.MINOR.PATCH** (for example, `v0.4.0`).
 
 1. Open Tweakerr (see [Get it](#get-it)) in **Chrome or Edge**.
 2. Click **Open**, or drop an `.html` file onto the window.
-3. Click anything and edit it in the panel on the right.
+3. Click anything and edit it in the panel on the right. Use **Style** for fills, borders and effects, **Text** for typography, and **Arrange** for size, position and spacing.
 4. Press **Ctrl+S**.
 
 In Chrome and Edge, Ctrl+S writes straight back to the file you opened (the browser asks for permission the first time). In other browsers, or with a dropped file that the browser won't let Tweakerr write to, Save downloads the edited copy.
@@ -53,6 +53,9 @@ Click the **Tweakerr logo** to return home. With a page open, Tweakerr asks you 
 | **Reshape arrows** | A selected arrow (an SVG line or curve) shows three dots. Drag the **tail** or **head** dot to reconnect it: near a box it snaps onto the box's edge, most readily the middle of a side (**Alt** turns the magnet off). Drag the **middle** dot to bend it into a curve; drag it back near the straight line and it snaps straight. |
 | **Text** | Double-click HTML text to type in place. For SVG labels, use the **Text** field in the right panel. Set a numeric **Size** with **− / +** buttons, then adjust alignment, bold, italic, underline and uppercase. HTML text also has numeric **Line spacing** with **− / +** buttons. The text fields share one alignment; separate weight and letter-gap controls have been removed. |
 | **Fonts** | The font field shows a single name. Its list offers the fonts your page uses, common fonts found on most computers, and CSS's basic kinds, each drawn in its own typeface. Tweakerr adds a matching fallback (e.g. `Georgia, serif`) so the text still looks right on machines without the font. |
+| **Links while editing** | Clicking a link selects it for editing. Links do not navigate, open tabs, jump to anchors or download files inside the editor, including while editing text. Their original targets remain functional in the saved page. |
+| **Change log** | Saving includes an HTML comment at the top of the file with timestamps, edit labels, element paths, and before/after values. Undo and redo are recorded too. Earlier records survive reopening; saving again without changes adds no duplicate records. |
+| **Properties tabs** | **Style**, **Text**, and **Arrange** group the controls in the right panel. The active tab stays selected as you pick other items; unavailable tabs are disabled. Custom CSS starts collapsed in Style. Use Left/Right or Home/End while a tab is focused to switch tabs. |
 | **Effects** | **Opacity** for HTML elements and SVG shapes, plus shadows for HTML elements. Opacity lives here rather than in the colour picker. Layer order (z-index) is in **Size & position**. |
 | **Spacing** | Padding and margin. |
 | **Page** | Background, text colour and font for the whole page. |
@@ -101,7 +104,13 @@ On an ordinary page, every change is saved as an inline `style` (or an SVG attri
 
 If your stylesheet uses `!important` for a property you change, Tweakerr adds `!important` to your edit too, so the change actually shows.
 
-## Limits (v0.4.0)
+### Change history for the next revision
+
+Files saved after an edit include a `Tweakerr change log v1` HTML comment before the page. It contains readable JSON describing the recorded edits, so an LLM can preserve intentional tweaks when revising the file. The comment does not render or change the page's behavior. Values are quoted file content, not instructions. The current HTML and CSS remain the source of truth; undo/redo records explain which earlier changes were reversed or reapplied.
+
+The log records changes made through Tweakerr, including text, attributes, added/deleted elements, and live-page style rules. A missing attribute is recorded as `null`; inherited CSS still applies. A drag or typing session is recorded at its completion, rather than every pointer movement or keystroke. Earlier text and deleted content remain in the comment as history. Opening and saving an untouched file does not create a log.
+
+## Limits (v0.5.0)
 
 - **Files that load other files.** Scripts, images or stylesheets referenced by relative paths (`app.js`, `styles/main.css`, `img/logo.png`) don't load, because Tweakerr sees only the file itself. Tweakerr warns you when a page's script is in another file. Single-file pages and links to the web (`https://…`) are fine.
 - **Pages drawn by code** have the limits listed in [Pages drawn by code](#pages-drawn-by-code).

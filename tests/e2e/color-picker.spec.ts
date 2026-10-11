@@ -20,6 +20,7 @@ test('HEX is available immediately, colour changes leave Effects opacity alone, 
   const opacity = field(page, 'Opacity', 'Effects').locator('.ctl-slider-out');
   await opacity.fill('60');
   await opacity.press('Enter');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await field(page, 'Colour', 'Text').getByRole('button', { name: 'Colour colour' }).click();
   const pop = picker(page);
   const hex = pop.getByRole('textbox', { name: 'HEX colour' });

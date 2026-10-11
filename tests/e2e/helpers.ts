@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export const APP_URL = pathToFileURL(resolve('dist/tweakerr.html')).href;
+export const APP_URL = process.env.TWEAKERR_URL || pathToFileURL(resolve('dist/tweakerr.html')).href;
 export const fixturePath = (name: string) => resolve('tests/fixtures', name);
 export const readFixture = (name: string) => readFileSync(fixturePath(name), 'utf8');
 
@@ -86,7 +86,12 @@ export function field(page: Page, label: string, section?: string) {
 
 /** Type a value into a panel field and commit it with Enter. */
 export async function setField(page: Page, label: string, value: string, section?: string): Promise<void> {
-  const input = field(page, label, section).locator('input, textarea, select').first();
+  const row = field(page, label, section);
+  const tab = await row.evaluate((el) => el.closest<HTMLElement>('[role=tabpanel]')!.dataset.tab!);
+  await page.getByRole('tab', { name: tab, exact: true }).click();
+  const details = row.locator('xpath=ancestor::details');
+  if (await details.getAttribute('open') === null) await details.locator('summary').click();
+  const input = row.locator('input, textarea, select').first();
   await input.click();
   await input.fill(value);
   await input.press('Enter');

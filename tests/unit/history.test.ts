@@ -96,7 +96,20 @@ describe('History', () => {
     expect(a.hasAttribute('lang')).toBe(false);
   });
 
-  it('tracks dirty state against the saved point', () => {
+  it('keeps an edit and undo journal dirty until saved, even when the DOM is unchanged', () => {
+    const h = mk();
+    const before = root.innerHTML;
+    const a = document.getElementById('a')!;
+    h.transact('x', () => a.setAttribute('title', '1'));
+    h.undo();
+    expect(root.innerHTML).toBe(before);
+    expect(h.changes.map((entry) => entry.action)).toEqual(['edit', 'undo']);
+    expect(h.dirty).toBe(true);
+    h.markSaved();
+    expect(h.dirty).toBe(false);
+  });
+
+  it('keeps undo and redo journal entries dirty after returning to the saved DOM', () => {
     const h = mk();
     const a = document.getElementById('a')!;
     expect(h.dirty).toBe(false);
@@ -107,6 +120,10 @@ describe('History', () => {
     h.undo();
     expect(h.dirty).toBe(true);
     h.redo();
+    expect(a.getAttribute('title')).toBe('1');
+    expect(h.changes.map((entry) => entry.action)).toEqual(['edit', 'undo', 'redo']);
+    expect(h.dirty).toBe(true);
+    h.markSaved();
     expect(h.dirty).toBe(false);
   });
 

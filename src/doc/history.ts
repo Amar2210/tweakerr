@@ -8,7 +8,9 @@
  * undo/redo round trips, so every kind of edit gets undo for free.
  */
 
-interface Rec {
+import { summarizeChanges, type Change, type ChangeRecord } from './changelog';
+
+export interface Rec {
   type: MutationRecordType;
   target: Node;
   attributeName: string | null;
@@ -27,6 +29,7 @@ export interface Entry {
   recs: Rec[];
   mergeKey?: string;
   time: number;
+  changes: Change[];
 }
 
 const OBSERVE: MutationObserverInit = {
@@ -42,6 +45,7 @@ const OBSERVE: MutationObserverInit = {
 const MERGE_WINDOW_MS = 1200;
 
 export class History {
+  readonly changes: ChangeRecord[] = [];
   private undoStack: Entry[] = [];
   private redoStack: Entry[] = [];
   private observer: MutationObserver | null = null;
@@ -50,6 +54,7 @@ export class History {
   private open: { label: string; mergeKey?: string } | null = null;
   private depth = 0;
   private savedAt: Entry | null = null;
+  private savedChangeCount = 0;
   private now: () => number;
 
   constructor(
@@ -96,6 +101,8 @@ export class History {
     if (recs.length === 0) return;
 
     const time = this.now();
+    const changes = summarizeChanges(recs);
+    if (changes.length) this.changes.push({ time: new Date(time).toISOString(), action: 'edit', label, changes });
     const top = this.undoStack[this.undoStack.length - 1];
     if (
       mergeKey &&
@@ -105,9 +112,10 @@ export class History {
       top !== this.savedAt
     ) {
       top.recs.push(...recs);
+      top.changes = [...top.changes, ...changes];
       top.time = time;
     } else {
-      this.undoStack.push({ label, recs, mergeKey, time });
+      this.undoStack.push({ label, recs, mergeKey, time, changes });
     }
     this.redoStack = [];
     this.onChange();
@@ -139,6 +147,10 @@ export class History {
     if (!entry) return false;
     for (let i = entry.recs.length - 1; i >= 0; i--) revert(entry.recs[i]);
     this.redoStack.push(entry);
+    if (entry.changes.length) this.changes.push({
+      time: new Date(this.now()).toISOString(), action: 'undo', label: entry.label,
+      changes: [...entry.changes].reverse().map((change) => ({ ...change, before: change.after, after: change.before })),
+    });
     this.onChange();
     return true;
   }
@@ -149,6 +161,7 @@ export class History {
     if (!entry) return false;
     for (const rec of entry.recs) reapply(rec);
     this.undoStack.push(entry);
+    if (entry.changes.length) this.changes.push({ time: new Date(this.now()).toISOString(), action: 'redo', label: entry.label, changes: entry.changes });
     this.onChange();
     return true;
   }
@@ -156,10 +169,11 @@ export class History {
   /** Remember the current state as "saved" so `dirty` can be computed. */
   markSaved(): void {
     this.savedAt = this.peekUndo() ?? null;
+    this.savedChangeCount = this.changes.length;
   }
 
   get dirty(): boolean {
-    return (this.peekUndo() ?? null) !== this.savedAt;
+    return (this.peekUndo() ?? null) !== this.savedAt || this.changes.length !== this.savedChangeCount;
   }
 }
 

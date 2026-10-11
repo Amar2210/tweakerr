@@ -42,6 +42,13 @@ test('Ctrl+S writes straight back to the opened file (File System Access)', asyn
   expect(await domDiff(page, ORIGINAL, writes[0])).toEqual([
     expect.stringMatching(/div#box-a\[\d+\] @style: ∅ -> "background-color: rgb\(254, 243, 199\);"/),
   ]);
+  // Focus inside the page must write to the same handle, not save the editor shell.
+  await page.locator('#frame').focus();
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => page.evaluate(() => (window as any).__writes.length)).toBe(2);
+  await page.locator('.toolbar [data-cmd="save"]').click();
+  await expect.poll(() => page.evaluate(() => (window as any).__writes.length)).toBe(3);
+  expect(await page.evaluate(() => (window as any).__writes)).toEqual([writes[0], writes[0], writes[0]]);
 });
 
 test('the done-check: border + move + arrow colour, save, reopen, only those changed', async ({ page }, info) => {

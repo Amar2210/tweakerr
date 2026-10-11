@@ -94,6 +94,7 @@ test('toggling a gradient preserves other background image layers', async ({ pag
 
 test('fonts: the field shows one name; the list offers page, common and basic fonts', async ({ page }) => {
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   const input = field(page, 'Font', 'Text').locator('input');
   await expect(input).toHaveValue('Arial');
   await expect(field(page, 'Font', 'Text')).toHaveAttribute('title', 'Arial, sans-serif');
@@ -114,6 +115,7 @@ test('fonts: the field shows one name; the list offers page, common and basic fo
 
 test('the font list scrolls instead of squashing its rows', async ({ page }) => {
   await select(page, '#title');
+  await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await field(page, 'Font', 'Text').locator('.ctl-font-open').click();
   const heights = await page.locator('.font-pop .font-opt').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
   expect(Math.min(...heights)).toBeGreaterThan(20);

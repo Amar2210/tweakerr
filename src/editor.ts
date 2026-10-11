@@ -1,6 +1,7 @@
 import { History } from './doc/history';
 import { isStructural } from './doc/kinds';
 import type { LiveEdits } from './doc/live';
+import type { ChangeRecord } from './doc/changelog';
 
 export type Device = 'desktop' | 'tablet' | 'phone';
 export const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 768, phone: 390 };
@@ -12,6 +13,7 @@ export interface OpenFile {
   trailingNewline: boolean;
   /** The file's text as opened. */
   source: string;
+  changes?: ChangeRecord[];
 }
 
 type EventName =

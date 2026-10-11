@@ -1,5 +1,6 @@
 import { DEVICE_HEIGHT, DEVICE_WIDTH, type Editor, type OpenFile } from '../editor';
 import { LiveEdits } from '../doc/live';
+import { readChangeLog } from '../doc/changelog';
 import type { Box } from '../util/geometry';
 import { drawsItself, pageScripts, settle, watchPage } from './livepage';
 
@@ -52,8 +53,8 @@ export class Stage {
 
   /** Load HTML text into the frame and hand the document to the editor. */
   async mount(html: string, name: string, handle: FileSystemFileHandle | null): Promise<{ live: boolean; missing: string[] }> {
-    const text = html.replace(/^\uFEFF/, '');
-    const file: OpenFile = { name, handle, trailingNewline: /\n\s*$/.test(text), source: text };
+    const { source: text, records } = readChangeLog(html.replace(/^\uFEFF/, ''));
+    const file: OpenFile = { name, handle, trailingNewline: /\n\s*$/.test(text), source: text, changes: records };
     this.stopWatching?.();
     this.stopWatching = null;
 
@@ -71,6 +72,18 @@ export class Stage {
     }
 
     pickable(doc);
+    // In-place text editing lets pointer events reach the iframe. Keep links
+    // editable there without following URLs, fragments, downloads or popups.
+    // Listeners are editor-only: the saved links remain fully functional.
+    const blockLink = (event: Event) => {
+      const target = event.target as Element | null;
+      const el = target?.nodeType === 1 ? target : target?.parentElement;
+      if (!el?.closest('a[href], area[href], a[xlink\\:href]')) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    doc.defaultView?.addEventListener('click', blockLink, true);
+    doc.defaultView?.addEventListener('auxclick', blockLink, true);
     // Re-measure when late content changes the page height.
     doc.addEventListener('load', () => this.queueRelayout(), true);
     doc.fonts?.ready.then(() => this.queueRelayout());

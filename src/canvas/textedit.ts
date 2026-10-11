@@ -20,8 +20,6 @@ export class TextEditor {
   constructor(
     private editor: Editor,
     private stage: Stage,
-    /** Ctrl/Cmd shortcuts pressed while typing inside the page. */
-    private onShortcut: (e: KeyboardEvent) => void,
   ) {
     editor.on('selection', () => {
       if (this.active && editor.selected !== this.active) this.commit();
@@ -57,27 +55,41 @@ export class TextEditor {
     html.focus({ preventScroll: true });
     this.placeCaret(html, clientX, clientY);
 
+    const buttonSpace = (e: KeyboardEvent) =>
+      e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.isComposing &&
+      !!html.closest('button') && html.contains(e.target as Node);
     const onKey = (e: KeyboardEvent) => {
+      if (buttonSpace(e)) {
+        // Buttons consume Space for activation even when contenteditable.
+        // Use the native editing command to preserve the caret, selected text,
+        // inline markup and typing undo history; never activate the button.
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        doc.execCommand('insertText', false, ' ');
+        return;
+      }
       if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
         this.commit();
         return;
-      }
-      if ((e.ctrlKey || e.metaKey) && ['s', 'o'].includes(e.key.toLowerCase())) {
-        e.preventDefault();
-        this.commit();
-        this.onShortcut(e);
       }
     };
     const onDown = (e: PointerEvent) => {
       if (!el.contains(e.target as Node)) this.commit();
     };
     const onBlur = () => this.commit();
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (!buttonSpace(e)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
     doc.addEventListener('keydown', onKey, true);
+    doc.addEventListener('keyup', onKeyUp, true);
     doc.addEventListener('pointerdown', onDown, true);
     html.addEventListener('blur', onBlur);
     this.cleanup = () => {
       doc.removeEventListener('keydown', onKey, true);
+      doc.removeEventListener('keyup', onKeyUp, true);
       doc.removeEventListener('pointerdown', onDown, true);
       html.removeEventListener('blur', onBlur);
     };

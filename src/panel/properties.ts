@@ -6,12 +6,15 @@ import { inlineStyle } from '../doc/style';
 import { h, isTypingTarget } from '../util/dom';
 import { icon, type IconName } from '../util/icons';
 import type { Control } from './controls';
-import { buildSections } from './sections';
+import { buildSections, type PropertyTab } from './sections';
+
+const TABS: PropertyTab[] = ['Style', 'Text', 'Arrange'];
 
 /** The right-hand panel: what's selected, quick actions, and its properties. */
 export class PropertiesPanel {
   private controls: Control[] = [];
-  private closed = new Set<string>();
+  private closed = new Set<string>(['Custom CSS']);
+  private activeTab: PropertyTab = 'Style';
   /** Which selection the panel was built for, to keep the scroll position across rebuilds. */
   private builtFor = '';
 
@@ -47,7 +50,7 @@ export class PropertiesPanel {
   build(): void {
     const { doc, selected, selection } = this.editor;
     const built = selection.map(elementKey).join('+');
-    const scroll = this.builtFor === built ? this.root.scrollTop : 0;
+    const scroll = this.builtFor === built ? this.root.querySelector('.props-content')?.scrollTop ?? 0 : 0;
     this.controls = [];
     this.builtFor = built;
 
@@ -68,7 +71,51 @@ export class PropertiesPanel {
         text: "No name (id) to find this by, so Tweakerr finds it by its position. If the page's code changes the order of its items, this change could land on a different one.",
       }));
     }
-    for (const section of buildSections(this.editor, els)) {
+    const sections = buildSections(this.editor, els);
+    if (!sections.some((section) => section.tab === this.activeTab)) this.activeTab = 'Style';
+    const tabs = h('div', { class: 'props-tabs', attrs: { role: 'tablist', 'aria-label': 'Properties' } });
+    const content = h('div', { class: 'props-content' });
+    const activate = (tab: PropertyTab) => {
+      this.activeTab = tab;
+      for (const button of tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]')) {
+        const active = button.textContent === tab;
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+      }
+      for (const panel of content.querySelectorAll<HTMLElement>('[role="tabpanel"]')) {
+        panel.hidden = panel.dataset.tab !== tab;
+      }
+      content.scrollTop = 0;
+    };
+    for (const tab of TABS) {
+      const available = sections.some((section) => section.tab === tab);
+      const button = h('button', {
+        class: 'props-tab', text: tab,
+        attrs: { type: 'button', role: 'tab', id: `props-tab-${tab}`, 'aria-controls': `props-panel-${tab}` },
+        on: {
+          click: () => activate(tab),
+          keydown: (event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const enabled = [...tabs.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+            const index = enabled.indexOf(button);
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1
+              : (index + (event.key === 'ArrowRight' ? 1 : -1) + enabled.length) % enabled.length;
+            enabled[next].click();
+            enabled[next].focus();
+          },
+        },
+      });
+      button.disabled = !available;
+      if (!available) button.title = `No ${tab.toLowerCase()} controls for this selection`;
+      tabs.append(button);
+      content.append(h('div', {
+        class: 'props-tab-panel', dataset: { tab },
+        attrs: { role: 'tabpanel', id: `props-panel-${tab}`, 'aria-labelledby': `props-tab-${tab}`, tabindex: '0' },
+      }));
+    }
+    for (const section of sections) {
       const details = h('details', { class: 'section' }, h('summary', { text: section.title }));
       details.open = !this.closed.has(section.title);
       details.addEventListener('toggle', () => {
@@ -77,10 +124,12 @@ export class PropertiesPanel {
       });
       for (const c of section.controls) details.append(c.el);
       this.controls.push(...section.controls);
-      parts.push(details);
+      content.querySelector(`[data-tab="${section.tab}"]`)!.append(details);
     }
+    parts.push(tabs, content);
+    activate(this.activeTab);
     this.root.replaceChildren(...parts);
-    this.root.scrollTop = scroll;
+    content.scrollTop = scroll;
   }
 
   private header(el: Element, isPage: boolean): HTMLElement {

@@ -31,8 +31,9 @@ test('cancelling home keeps unsaved changes, selection and undo history', async 
   await expect(page).toHaveTitle('• board.html — Tweakerr');
   expect(await selectedId(page)).toBe('box-b');
   await page.locator('[data-cmd="undo"]').click();
-  await expect(page).toHaveTitle('board.html — Tweakerr');
+  await expect(page).toHaveTitle('• board.html — Tweakerr');
   expect(await domDiff(page, readFixture('board.html'), await saveViaDownload(page))).toEqual([]);
+  await expect(page).toHaveTitle('board.html — Tweakerr');
 });
 
 for (const dirty of [false, true]) {

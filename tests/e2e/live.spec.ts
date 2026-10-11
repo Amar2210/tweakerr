@@ -1,3 +1,4 @@
+import { readChangeLog } from '../../src/doc/changelog';
 import { expect, test, type Page } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { drag, field, launch, openFile, pointIn, readFixture, saveViaDownload, select, setField } from './helpers';
@@ -13,7 +14,7 @@ const inPage = <T>(page: Page, fn: (doc: Document) => T) =>
 function rulesOf(saved: string, original = ORIGINAL): string[] {
   const m = BLOCK.exec(saved);
   expect(m, 'saved file has the edits block').not.toBeNull();
-  expect(saved.replace(BLOCK, '')).toBe(original);
+  expect(readChangeLog(saved).source.replace(BLOCK, '')).toBe(original);
   return m![1].split('\n');
 }
 
@@ -80,7 +81,7 @@ test('editing words changes them where the code writes them', async ({ page }) =
   await page.keyboard.press('Escape');
 
   const saved = await saveViaDownload(page);
-  expect(saved).toBe(ORIGINAL.replace("title: 'Invoice'", "title: 'Billing'"));
+  expect(readChangeLog(saved).source).toBe(ORIGINAL.replace("title: 'Invoice'", "title: 'Billing'"));
 
   // A redraw (after a move) keeps showing the new words.
   await select(page, '#step-invoice');
@@ -105,7 +106,7 @@ test('words written several times change only for the item clicked', async ({ pa
   await page.keyboard.press('Escape');
 
   const saved = await saveViaDownload(page);
-  expect(saved).toBe(ORIGINAL.replace("note: 'Finance sends it', team: 'Finance', x: 520, y: 240", "note: 'Finance sends it', team: 'Treasury', x: 520, y: 240"));
+  expect(readChangeLog(saved).source).toBe(ORIGINAL.replace("note: 'Finance sends it', team: 'Finance', x: 520, y: 240", "note: 'Finance sends it', team: 'Treasury', x: 520, y: 240"));
 
   // After a redraw only the Cash card shows the new words.
   await page.evaluate(() => (window as any).tweakerr.editor.doc.defaultView.dispatchEvent(new Event('resize')));
@@ -183,6 +184,7 @@ test('a page that redraws on resize settles, and the panel stays clickable', asy
 
 test('stepping an arrow the code redraws: it stays selected, and stops when released', async ({ page }) => {
   await select(page, '#wire-order-invoice');
+  await page.getByRole('tab', { name: 'Arrange', exact: true }).click();
   const up = field(page, 'X', 'Position').getByRole('button', { name: /^Increase/ });
   const shift = () => inPage(page, (d) => getComputedStyle(d.getElementById('wire-order-invoice')!).translate);
   // Each next click lands right after the page redrew its arrows, before Tweakerr caught up.
@@ -200,6 +202,7 @@ test('stepping an arrow the code redraws: it stays selected, and stops when rele
 
 test('moving an arrow along Y right after the code redrew it keeps its X', async ({ page }) => {
   await select(page, '#wire-order-invoice');
+  await page.getByRole('tab', { name: 'Arrange', exact: true }).click();
   const byName = (n: string) => field(page, n, 'Position').getByRole('button', { name: /^Increase/ });
   const shift = () => inPage(page, (d) => getComputedStyle(d.getElementById('wire-order-invoice')!).translate);
   const clickThenWaitForRedraw = async (n: string) => {

@@ -27,7 +27,10 @@ import {
   buttonsControl,
 } from './controls';
 
+export type PropertyTab = 'Style' | 'Text' | 'Arrange';
+
 export interface Section {
+  tab: PropertyTab;
   title: string;
   controls: Control[];
 }
@@ -82,7 +85,7 @@ export function buildSections(editor: Editor, els: Element[]): Section[] {
   if (hasText) sections.push(textSection(editor, el, els, css, palette));
   sections.push(fillSection(editor, el, els, css, palette));
   if (gradientLayer(computed(el, 'background-image'))) {
-    sections.push({ title: 'Gradient', controls: gradientControls(editor, el, els, palette) });
+    sections.push({ tab: 'Style', title: 'Gradient', controls: gradientControls(editor, el, els, palette) });
   }
   sections.push(layoutSection(editor, el, els, css));
   sections.push(spacingSection(css));
@@ -99,6 +102,7 @@ export function buildSections(editor: Editor, els: Element[]): Section[] {
 function mixedSections(css: Css): Section[] {
   return [
     {
+      tab: 'Style',
       title: 'Effects',
       controls: [
         noteControl('Boxes and shapes are selected together, so only the settings they share are shown.'),
@@ -129,6 +133,7 @@ function textSection(editor: Editor, el: Element, els: Element[], css: Css, pale
     },
   });
   return {
+    tab: 'Text',
     title: 'Text',
     controls: [
       fontField(editor, css),
@@ -341,7 +346,7 @@ function fillSection(editor: Editor, el: Element, els: Element[], css: Css, pale
     }), { palette }),
     numberControl('Radius', css('border-radius', { read: () => computed(el, 'border-top-left-radius') }), { min: 0, title: 'Corner radius' }),
   );
-  return { title: 'Fill & border', controls };
+  return { tab: 'Style', title: 'Fill & border', controls };
 }
 
 function layoutSection(editor: Editor, el: Element, els: Element[], css: Css): Section {
@@ -363,6 +368,7 @@ function layoutSection(editor: Editor, el: Element, els: Element[], css: Css): S
     },
   });
   return {
+    tab: 'Arrange',
     title: 'Size & position',
     controls: [
       gridControl('', [
@@ -445,7 +451,7 @@ function spacingSection(css: Css): Section {
       ),
       2,
     );
-  return { title: 'Spacing', controls: [four('padding'), four('margin')] };
+  return { tab: 'Arrange', title: 'Spacing', controls: [four('padding'), four('margin')] };
 }
 
 function opacityControl(css: Css): Control {
@@ -458,6 +464,7 @@ function opacityControl(css: Css): Control {
 
 function effectsSection(css: Css): Section {
   return {
+    tab: 'Style',
     title: 'Effects',
     controls: [
       opacityControl(css),
@@ -498,7 +505,7 @@ function contentSection(el: Element, attr: Attr): Section | null {
   if (el.localName === 'img') {
     controls.push(textControl('Source', attr('src'), { mono: true }), textControl('Alt text', attr('alt')));
   }
-  return controls.length ? { title: 'Content', controls } : null;
+  return controls.length ? { tab: 'Style', title: 'Content', controls } : null;
 }
 
 function customSection(editor: Editor, el: Element): Section {
@@ -506,6 +513,7 @@ function customSection(editor: Editor, el: Element): Section {
   const live = editor.live;
   if (live) {
     return {
+      tab: 'Style',
       title: 'Custom CSS',
       controls: [
         textControl('Style rule for this element', {
@@ -516,6 +524,7 @@ function customSection(editor: Editor, el: Element): Section {
     };
   }
   return {
+    tab: 'Style',
     title: 'Custom CSS',
     controls: [
       textControl('Inline style of this element', {
@@ -533,9 +542,16 @@ function customSection(editor: Editor, el: Element): Section {
 function pageSections(editor: Editor, el: Element, css: Css, palette: Palette): Section[] {
   return [
     {
+      tab: 'Style',
       title: 'Page',
       controls: [
         colorControl('Background', css('background-color'), { none: 'transparent', palette }),
+      ],
+    },
+    {
+      tab: 'Text',
+      title: 'Text',
+      controls: [
         colorControl('Text', css('color'), { palette }),
         fontField(editor, css),
         textSizeControl('Font size', css),
@@ -565,7 +581,7 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
       { value: 'square', label: 'Square' },
     ], css('stroke-linecap')),
   );
-  sections.push({ title: el.localName === 'text' ? 'Text colour' : 'Shape', controls: shape });
+  sections.push({ tab: ['text', 'tspan'].includes(el.localName) ? 'Text' : 'Style', title: ['text', 'tspan'].includes(el.localName) ? 'Text colour' : 'Shape', controls: shape });
 
   if (canHaveMarkers(el)) {
     const heads: Control[] = [];
@@ -590,7 +606,7 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
       );
     }
     if (heads.length && editor.live) heads.push(noteControl('On a page drawn by code, an arrowhead change applies to every arrow that shares it.'));
-    if (heads.length) sections.push({ title: 'Arrowheads', controls: heads });
+    if (heads.length) sections.push({ tab: 'Style', title: 'Arrowheads', controls: heads });
   }
 
   const shift = (axis: 0 | 1): Binding<string> => editor.live ? cssShift(el, css, axis) : ({
@@ -645,7 +661,7 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
       geo.push(noteControl('Drag the dots on its ends to reconnect it (they snap onto boxes), or the middle dot to bend it.'));
     }
   }
-  sections.push({ title: 'Position', controls: geo });
+  sections.push({ tab: 'Arrange', title: 'Position', controls: geo });
 
   if (el.localName === 'text' || el.localName === 'tspan') {
     const text: Control[] = [];
@@ -677,10 +693,10 @@ function svgSections(editor: Editor, el: Element, els: Element[], css: Css, attr
         { value: 'end', label: 'End' },
       ], css('text-anchor')),
     );
-    sections.push({ title: 'Text', controls: text });
+    sections.push({ tab: 'Text', title: 'Text', controls: text });
   }
 
-  sections.push({ title: 'Effects', controls: [opacityControl(css)] });
+  sections.push({ tab: 'Style', title: 'Effects', controls: [opacityControl(css)] });
   if (!multi) sections.push(customSection(editor, el));
   return sections;
 }
