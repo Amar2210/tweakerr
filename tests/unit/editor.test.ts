@@ -1,0 +1,64 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { Editor } from '../../src/editor';
+import { LiveEdits } from '../../src/doc/live';
+import { watchPage } from '../../src/canvas/livepage';
+
+let stop = () => {};
+afterEach(() => { stop(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+it('comment-only live undo/redo leaves page code alone, but page history still redraws', async () => {
+  vi.useFakeTimers();
+  // jsdom has no CSS.escape; the fixture uses plain identifier-only selectors.
+  vi.stubGlobal('CSS', { escape: (value: string) => value });
+  document.head.innerHTML = '';
+  document.body.innerHTML = '<div id="board"></div>';
+  const markup = '<button id="contractors"><h2>Contractors</h2><p>Temporary workforce records.</p></button><button id="employees">Employee data</button>';
+  const render = () => { document.querySelector('#board')!.innerHTML = markup; };
+  render();
+  const editor = new Editor(document.createElement('iframe'));
+  const live = new LiveEdits(document, '<!DOCTYPE html><html><head></head><body></body></html>');
+  editor.attach(document, { name: 'synthetic-live.html', handle: null, trailingNewline: false, source: live.source }, live);
+  const original = document.querySelector('button')!;
+  editor.select(original);
+  let resizes = 0;
+  let redraws = 0;
+  const onResize = () => { resizes++; render(); };
+  window.addEventListener('resize', onResize);
+  editor.on('redraw', () => redraws++);
+  const unwatch = watchPage(editor, live);
+  stop = () => { unwatch(); window.removeEventListener('resize', onResize); };
+  const before = document.documentElement.outerHTML;
+  editor.comments!.add('Keep these records separate.', [original]);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect([resizes, redraws]).toEqual([0, 0]);
+  editor.undo();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect([resizes, redraws]).toEqual([0, 0]);
+  expect(editor.comments!.all).toEqual([]);
+  expect(editor.history!.dirty).toBe(false);
+  editor.redo();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect([resizes, redraws]).toEqual([0, 0]);
+  expect(editor.comments!.all[0].text).toBe('Keep these records separate.');
+  expect(editor.history!.changes).toEqual([]);
+  expect(editor.selection).toEqual([original]);
+  expect(document.documentElement.outerHTML).toBe(before);
+
+  editor.edit('Change width', () => live.set(editor.selected!, 'width', '250px'));
+  await vi.advanceTimersByTimeAsync(1000);
+  expect([resizes, redraws]).toEqual([1, 1]);
+  expect(editor.selected).not.toBe(original);
+  expect(editor.selected).toBe(document.querySelector('#contractors'));
+  expect(live.get(editor.selected!, 'width')).toBe('250px');
+  editor.undo();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect([resizes, redraws]).toEqual([2, 2]);
+  expect(live.get(editor.selected!, 'width')).toBe('');
+  editor.redo();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect([resizes, redraws]).toEqual([3, 3]);
+  expect(live.get(editor.selected!, 'width')).toBe('250px');
+  expect(editor.selection).toEqual([document.querySelector('#contractors')]);
+  expect(document.body.innerHTML).toBe('<div id="board">' + markup + '</div>');
+  expect(editor.history!.changes.map((entry) => entry.action)).toEqual(['edit', 'undo', 'redo']);
+});

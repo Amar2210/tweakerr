@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Generated comment targets</title>
+<style>
+  body { margin: 0; background: #f6f7fb; color: #222; font: 14px Arial, sans-serif; }
+  h1 { margin: 30px 40px 20px; font-size: 25px; }
+  #viewport { margin: 0 40px; width: 650px; max-width: calc(100% - 80px); overflow: auto; }
+  #board { display: flex; align-items: flex-start; gap: 30px; width: 1400px; min-height: 480px; padding: 25px 0; }
+  .node { position: relative; flex: none; width: 230px; padding: 18px; border: 2px solid #4a67d6; border-radius: 9px; background: #fff; color: #222; text-align: left; }
+  .node h2 { margin: 0 0 8px; font-size: 18px; }
+  .node p { margin: 0; line-height: 1.5; }
+</style>
+</head>
+<body>
+<h1>Workforce flow</h1>
+<div id="viewport"><div id="board"></div></div>
+<script>
+  // The data has IDs; the generated DOM deliberately does not.
+  const items = [
+    { id: 'contractors', title: 'Contractors', detail: 'Temporary workforce records from an uploaded sheet.' },
+    { id: 'employees', title: 'Employee data', detail: 'Permanent workforce records from the HR system.' },
+    { id: 'report', title: 'Cost report', detail: 'Compare workforce cost with the approved budget.' },
+  ];
+  function renderBoard() {
+    const board = document.getElementById('board');
+    board.replaceChildren();
+    for (const item of items) {
+      const button = document.createElement('button');
+      button.className = 'node';
+      const title = document.createElement('h2');
+      title.textContent = item.title;
+      const detail = document.createElement('p');
+      detail.textContent = item.detail;
+      button.append(title, detail);
+      board.append(button);
+    }
+  }
+  renderBoard();
+  addEventListener('resize', renderBoard);
+  window.commentsFixture = {
+    reorder() { items.reverse(); renderBoard(); },
+    removeContractors() { items.splice(items.findIndex(item => item.id === 'contractors'), 1); renderBoard(); },
+  };
+</script>
+</body>
+</html>

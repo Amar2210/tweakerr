@@ -29,7 +29,19 @@ export interface Entry {
   recs: Rec[];
   mergeKey?: string;
   time: number;
+  /** Elapsed clock, independent of the wall-clock timestamps in the journal. */
+  mergeTime: number;
   changes: Change[];
+  /** Editor metadata is undoable without becoming immutable page-edit history. */
+  stateChange?: { undo: () => void; redo: () => void };
+}
+
+/** The serialized state, even if its undo entry is later extended while a save awaits I/O. */
+export interface SaveCheckpoint {
+  readonly entry: Entry | null;
+  readonly changeCount: number;
+  readonly recCount: number;
+  readonly stateRedo?: () => void;
 }
 
 const OBSERVE: MutationObserverInit = {
@@ -53,16 +65,19 @@ export class History {
   private delivered: Rec[] = [];
   private open: { label: string; mergeKey?: string } | null = null;
   private depth = 0;
-  private savedAt: Entry | null = null;
-  private savedChangeCount = 0;
+  private saved: SaveCheckpoint = { entry: null, changeCount: 0, recCount: 0 };
   private now: () => number;
+  private elapsedNow: () => number;
 
   constructor(
     private root: Node,
     private onChange: () => void = () => {},
     now?: () => number,
+    elapsedNow?: () => number,
   ) {
     this.now = now ?? (() => Date.now());
+    // A supplied single test clock still controls both; real merges use monotonic time.
+    this.elapsedNow = elapsedNow ?? now ?? (() => performance.now());
   }
 
   /** Run `fn` and record everything it changes as one undo step. */
@@ -101,6 +116,7 @@ export class History {
     if (recs.length === 0) return;
 
     const time = this.now();
+    const mergeTime = this.elapsedNow();
     const changes = summarizeChanges(recs);
     if (changes.length) this.changes.push({ time: new Date(time).toISOString(), action: 'edit', label, changes });
     const top = this.undoStack[this.undoStack.length - 1];
@@ -108,14 +124,34 @@ export class History {
       mergeKey &&
       top &&
       top.mergeKey === mergeKey &&
-      time - top.time < MERGE_WINDOW_MS &&
-      top !== this.savedAt
+      mergeTime - top.mergeTime < MERGE_WINDOW_MS &&
+      top !== this.saved.entry
     ) {
       top.recs.push(...recs);
       top.changes = [...top.changes, ...changes];
       top.time = time;
+      top.mergeTime = mergeTime;
     } else {
-      this.undoStack.push({ label, recs, mergeKey, time, changes });
+      this.undoStack.push({ label, recs, mergeKey, time, mergeTime, changes });
+    }
+    this.redoStack = [];
+    this.onChange();
+  }
+
+  /**
+   * Record a change already applied to editor-owned state, outside the page DOM.
+   * A unique typing-session key coalesces that session even across typing pauses.
+   * Saved entries and intervening page edits always form an undo boundary.
+   */
+  recordState(label: string, undo: () => void, redo: () => void, mergeKey?: string): void {
+    if (this.depth) throw new Error('Finish the page edit before editing revision comments.');
+    const time = this.now();
+    const top = this.peekUndo();
+    if (mergeKey && top?.stateChange && top.mergeKey === mergeKey && top !== this.saved.entry) {
+      top.stateChange.redo = redo;
+      top.time = time;
+    } else {
+      this.undoStack.push({ label, recs: [], changes: [], mergeKey, time, mergeTime: this.elapsedNow(), stateChange: { undo, redo } });
     }
     this.redoStack = [];
     this.onChange();
@@ -146,6 +182,7 @@ export class History {
     const entry = this.undoStack.pop();
     if (!entry) return false;
     for (let i = entry.recs.length - 1; i >= 0; i--) revert(entry.recs[i]);
+    entry.stateChange?.undo();
     this.redoStack.push(entry);
     if (entry.changes.length) this.changes.push({
       time: new Date(this.now()).toISOString(), action: 'undo', label: entry.label,
@@ -160,20 +197,28 @@ export class History {
     const entry = this.redoStack.pop();
     if (!entry) return false;
     for (const rec of entry.recs) reapply(rec);
+    entry.stateChange?.redo();
     this.undoStack.push(entry);
     if (entry.changes.length) this.changes.push({ time: new Date(this.now()).toISOString(), action: 'redo', label: entry.label, changes: entry.changes });
     this.onChange();
     return true;
   }
 
-  /** Remember the current state as "saved" so `dirty` can be computed. */
-  markSaved(): void {
-    this.savedAt = this.peekUndo() ?? null;
-    this.savedChangeCount = this.changes.length;
+  /** Capture before async saving, not after the write completes. */
+  checkpoint(): SaveCheckpoint {
+    const entry = this.peekUndo() ?? null;
+    return { entry, changeCount: this.changes.length, recCount: entry?.recs.length ?? 0, stateRedo: entry?.stateChange?.redo };
+  }
+
+  /** Remember the state actually written; later edits must remain dirty. */
+  markSaved(checkpoint = this.checkpoint()): void {
+    this.saved = checkpoint;
   }
 
   get dirty(): boolean {
-    return (this.peekUndo() ?? null) !== this.savedAt || this.changes.length !== this.savedChangeCount;
+    const current = this.checkpoint();
+    return current.entry !== this.saved.entry || current.changeCount !== this.saved.changeCount
+      || current.recCount !== this.saved.recCount || current.stateRedo !== this.saved.stateRedo;
   }
 }
 

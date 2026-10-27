@@ -3,12 +3,14 @@ import { History } from '../../src/doc/history';
 
 let root: HTMLElement;
 let clock = 0;
-const mk = () => new History(root, () => {}, () => clock);
+let elapsed = 0;
+const mk = () => new History(root, () => {}, () => clock, () => elapsed);
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="root"><p id="a" style="color: red;">Hello <b>world</b></p><p id="b">Two</p></div>';
   root = document.getElementById('root')!;
   clock = 0;
+  elapsed = 0;
 });
 
 describe('History', () => {
@@ -72,14 +74,30 @@ describe('History', () => {
   it('merges edits with the same key inside the window', () => {
     const h = mk();
     const a = document.getElementById('a')!;
-    for (let i = 1; i <= 5; i++) { clock += 100; h.transact('op', () => a.style.setProperty('opacity', String(i / 10)), 'opacity'); }
+    for (let i = 1; i <= 5; i++) { clock += 100; elapsed += 100; h.transact('op', () => a.style.setProperty('opacity', String(i / 10)), 'opacity'); }
     clock += 5000;
+    elapsed += 5000;
     h.transact('op', () => a.style.setProperty('opacity', '0.9'), 'opacity');
     h.undo();
     expect(a.style.opacity).toBe('0.5');
     h.undo();
     expect(a.style.opacity).toBe('');
     expect(h.canUndo()).toBe(false);
+  });
+
+  it('uses elapsed time for merging but wall time for the saved edit journal', () => {
+    const h = mk();
+    const a = document.getElementById('a')!;
+    h.transact('op', () => a.style.setProperty('opacity', '0.1'), 'opacity');
+    clock += 3000;
+    elapsed += 400;
+    h.transact('op', () => a.style.setProperty('opacity', '0.2'), 'opacity');
+    expect(h.changes.map((entry) => entry.time)).toEqual([new Date(0).toISOString(), new Date(3000).toISOString()]);
+    h.undo();
+    expect(a.style.opacity).toBe('');
+    expect(h.canUndo()).toBe(false);
+    h.redo();
+    expect(a.style.opacity).toBe('0.2');
   });
 
   it('records nothing for no-op transactions and nests begin/end', () => {
@@ -124,6 +142,46 @@ describe('History', () => {
     expect(h.changes.map((entry) => entry.action)).toEqual(['edit', 'undo', 'redo']);
     expect(h.dirty).toBe(true);
     h.markSaved();
+    expect(h.dirty).toBe(false);
+  });
+
+  it('keeps a serialized checkpoint distinct from later coalesced sidecar typing', () => {
+    const h = mk();
+    let value = '';
+    const type = (next: string) => {
+      const before = value;
+      value = next;
+      h.recordState('Comment', () => { value = before; }, () => { value = next; }, 'typing');
+    };
+    type('Snapshot');
+    const checkpoint = h.checkpoint();
+    type('Snapshot plus unsaved typing');
+    expect(h.peekUndo()).toBe(checkpoint.entry);
+    expect(h.changes).toEqual([]);
+    h.markSaved(checkpoint);
+    expect(h.dirty).toBe(true);
+    h.undo();
+    expect(value).toBe('');
+    expect(h.dirty).toBe(true); // disk contains Snapshot, not the original empty state
+    h.redo();
+    expect(value).toBe('Snapshot plus unsaved typing');
+    expect(h.dirty).toBe(true);
+    h.markSaved();
+    type('A subsequent edit');
+    h.undo();
+    expect(value).toBe('Snapshot plus unsaved typing');
+    expect(h.dirty).toBe(false);
+  });
+
+  it('records the written checkpoint even when it was undone while saving', () => {
+    const h = mk();
+    h.recordState('Comment', () => {}, () => {});
+    const checkpoint = h.checkpoint();
+    h.undo();
+    expect(h.dirty).toBe(false);
+    h.markSaved(checkpoint);
+    expect(h.dirty).toBe(true);
+    h.redo();
     expect(h.dirty).toBe(false);
   });
 

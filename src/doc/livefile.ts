@@ -17,6 +17,8 @@ export interface TextSwap {
    * is written several times: the one in the same {…} or […] as this wins.
    */
   anchor?: string;
+  /** Runtime replay target. The anchor disambiguates source text, not the rendered DOM. */
+  selector?: string;
 }
 
 type Found = { index: number; length: number; write: (to: string) => string };

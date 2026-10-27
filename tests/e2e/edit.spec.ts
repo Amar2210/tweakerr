@@ -134,6 +134,31 @@ test('the small up/down buttons step a field; holding one repeats; it is one und
   await expect(radius.locator('input')).toHaveValue(String(r0));
 });
 
+test('a wall-clock jump during a held stepper does not split undo', async ({ page }) => {
+  await select(page, '#box-b');
+  const radius = field(page, 'Radius', 'Fill & border');
+  await expect(radius.locator('input')).toHaveValue('10');
+  await page.clock.setFixedTime(new Date('2030-01-01T00:00:00Z'));
+  const down = radius.getByRole('button', { name: 'Decrease Corner radius' });
+  const b = (await down.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  try {
+    await expect(radius.locator('input')).toHaveValue('9');
+    // Date jumps, while performance.now() and the real repeat timers do not.
+    await page.clock.setFixedTime(new Date('2030-01-01T00:00:03Z'));
+    await expect.poll(async () => Number(await radius.locator('input').inputValue())).toBeLessThanOrEqual(6);
+  } finally {
+    await page.mouse.up();
+  }
+  const held = await radius.locator('input').inputValue();
+  await page.locator('#canvas').focus();
+  await page.keyboard.press('Control+z');
+  await expect(radius.locator('input')).toHaveValue('10');
+  await page.keyboard.press('Control+Shift+z');
+  await expect(radius.locator('input')).toHaveValue(held);
+});
+
 test('dashing a box that has lines on only two sides gives an even frame', async ({ page }) => {
   await inPage(page, (d) => {
     d.getElementById('badge')!.setAttribute('style', 'border: 0; border-right: 1px solid rgb(10, 20, 30); border-bottom: 1px solid rgb(10, 20, 30)');

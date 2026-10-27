@@ -241,11 +241,13 @@ export class LiveEdits {
     if (a === b) return;
     const list = this.swaps();
     const last = list.at(-1);
+    const selector = this.selectorFor(el);
     if (last && this.lastTextEl === el && last.to === a) {
       last.to = b;
+      last.selector = selector;
       if (last.from === last.to) list.pop();
     } else {
-      list.push(anchor ? { from: a, to: b, anchor } : { from: a, to: b });
+      list.push({ from: a, to: b, selector, ...(anchor ? { anchor } : {}) });
     }
     this.lastTextEl = el;
     this.setSwaps(list);
@@ -255,16 +257,19 @@ export class LiveEdits {
   reapplySwaps(): void {
     const swaps = this.swaps();
     if (!swaps.length || !this.doc.body) return;
-    const walker = this.doc.createTreeWalker(this.doc.body, NodeFilter.SHOW_TEXT);
-    for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
-      const parent = n.parentElement?.localName;
-      if (parent === 'script' || parent === 'style') continue;
-      for (const s of swaps) {
-        if (n.data.trim() !== s.from) continue;
-        // Words written for one item ("HR" on the Employee data card) change only there.
-        if (s.anchor && !itemOf(n.parentElement).some((e) => (e.textContent ?? '').includes(s.anchor!))) continue;
-        n.data = n.data.replace(s.from, s.to);
+    for (const s of swaps) {
+      const target = s.selector ? this.find(s.selector) : this.doc.body;
+      if (!target) continue; // A removed target must not redirect its edit to a neighbour.
+      const matches: Text[] = [];
+      const walker = this.doc.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
+        const parent = n.parentElement?.localName;
+        if (parent !== 'script' && parent !== 'style' && n.data.trim() === s.from) matches.push(n);
       }
+      // Older in-memory swaps have no target. Keep unique-text replay, but never
+      // guess among siblings using an anchor found in their shared ancestors.
+      if (!s.selector && matches.length !== 1) continue;
+      for (const n of matches) n.data = n.data.replace(s.from, s.to);
     }
   }
 

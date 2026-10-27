@@ -1,7 +1,8 @@
-import { History } from './doc/history';
+import { History, type SaveCheckpoint } from './doc/history';
 import { isStructural } from './doc/kinds';
 import type { LiveEdits } from './doc/live';
 import type { ChangeRecord } from './doc/changelog';
+import { RevisionComments, type RevisionComment } from './doc/comments';
 
 export type Device = 'desktop' | 'tablet' | 'phone';
 export const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 768, phone: 390 };
@@ -14,6 +15,7 @@ export interface OpenFile {
   /** The file's text as opened. */
   source: string;
   changes?: ChangeRecord[];
+  comments?: RevisionComment[];
 }
 
 type EventName =
@@ -37,6 +39,8 @@ export class Editor {
   file: OpenFile | null = null;
   /** Set when the page draws itself with scripts: edits are saved as style rules (see doc/live.ts). */
   live: LiveEdits | null = null;
+  /** Revision requests live outside the editable page and its immutable edit log. */
+  comments: RevisionComments | null = null;
   /** Shows a short message to the user (main.ts wires it to a toast). */
   notify: (message: string) => void = () => {};
 
@@ -82,11 +86,13 @@ export class Editor {
     this.selection = [];
     this.hovered = null;
     this.history = new History(doc, () => {
+      this.comments?.refresh();
       this.pruneSelection();
       this.emit('edited');
       this.emit('change');
       this.emit('file');
     });
+    this.comments = new RevisionComments(doc, this.history, file.comments);
     this.emit('load');
     this.emit('selection');
     this.emit('file');
@@ -155,17 +161,17 @@ export class Editor {
   }
 
   undo(): void {
-    if (this.live) this.live.movedThings = true;
+    if (this.live && !this.history?.inTransaction && this.history?.peekUndo()?.recs.length) this.live.movedThings = true;
     this.history?.undo();
   }
 
   redo(): void {
-    if (this.live) this.live.movedThings = true;
+    if (this.live && !this.history?.inTransaction && this.history?.peekRedo()?.recs.length) this.live.movedThings = true;
     this.history?.redo();
   }
 
-  markSaved(): void {
-    this.history?.markSaved();
+  markSaved(checkpoint?: SaveCheckpoint): void {
+    this.history?.markSaved(checkpoint);
     this.emit('file');
   }
 

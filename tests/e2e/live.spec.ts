@@ -20,7 +20,25 @@ function rulesOf(saved: string, original = ORIGINAL): string[] {
 
 test.beforeEach(async ({ page }) => {
   await launch(page);
-  await openFile(page, 'drawn.html');
+  // Document readiness does not mean the live watcher's startup redraw finished.
+  // Capture it before opening, so a fast load cannot outrun the readiness wait.
+  const startup = await page.evaluateHandle(() => {
+    const { editor } = (window as any).tweakerr;
+    const state = { redrawn: false, off: () => {} };
+    state.off = editor.on('redraw', () => {
+      if (editor.file?.name !== 'drawn.html') return;
+      state.redrawn = true;
+      state.off();
+    });
+    return state;
+  });
+  try {
+    await openFile(page, 'drawn.html');
+    await page.waitForFunction((state) => state.redrawn, startup, { timeout: 5000 });
+  } finally {
+    await startup.evaluate((state) => state.off());
+    await startup.dispose();
+  }
 });
 
 test('a page drawn by its code opens live, a plain page does not', async ({ page }) => {
@@ -108,8 +126,12 @@ test('words written several times change only for the item clicked', async ({ pa
   const saved = await saveViaDownload(page);
   expect(readChangeLog(saved).source).toBe(ORIGINAL.replace("note: 'Finance sends it', team: 'Finance', x: 520, y: 240", "note: 'Finance sends it', team: 'Treasury', x: 520, y: 240"));
 
-  // After a redraw only the Cash card shows the new words.
-  await page.evaluate(() => (window as any).tweakerr.editor.doc.defaultView.dispatchEvent(new Event('resize')));
+  // Register before resize, then wait for the watcher's debounced replay.
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const { editor } = (window as any).tweakerr;
+    const off = editor.on('redraw', () => { off(); resolve(); });
+    editor.doc.defaultView.dispatchEvent(new Event('resize'));
+  }));
   expect(await inPage(page, (d) => [d.querySelector('#step-invoice .team')!.textContent, d.querySelector('#step-cash .team')!.textContent])).toEqual(['Finance', 'Treasury']);
 });
 

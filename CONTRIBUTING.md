@@ -34,9 +34,12 @@ src/canvas/
   arrow.ts             arrow dots: move an end, bend the middle (live pages: a `d` rule)
   magnet.ts            an arrow end snaps onto the nearest box edge
   textedit.ts          typing in place
+  comments.ts          editor-only revision markers, shared-note popovers and input
 src/doc/
   history.ts           undo/redo, recorded with a MutationObserver
   changelog.ts         saved comment with immutable before/after edit records
+  comments.ts          revision-request sidecar state + versioned HTML-comment metadata
+  comment-targets.ts   stable IDs/data keys and conservative anonymous target matching
   serialize.ts         document -> HTML file
   style.ts             read computed styles, write inline styles (or live rules)
   live.ts              live pages: edits as style rules keyed by selector, text swaps
@@ -46,7 +49,7 @@ src/doc/
   similar.ts           "select all like this": same type, same colour
   kinds.ts, palette.ts helpers: what kind of element, page colours/fonts
   keys.ts              a stable id per element (merges edits; kept across live redraws)
-src/panel/             properties panel (controls + per-element sections), layers
+src/panel/             properties, layers, and resolved/unavailable revision history
 src/io/files.ts        File System Access API with input/download fallbacks
 src/util/path.ts       SVG path data: parse, move an end, bend, straighten
 ```
@@ -59,8 +62,8 @@ On a live page, `setStyle`/`setAttr` write into one `<style id="tweakerr-edits">
 
 ## Rules that keep saved files clean
 
-1. **Never draw editor UI inside the page.** Selection boxes, handles, labels and guides all live in the overlay, in the editor's own document. Serialising the page must give back the user's file plus their edits. Saving also prefixes the separately managed change-log comment; it must never be inserted into the editable DOM.
-2. **Every change goes through `editor.edit(label, fn, mergeKey?)`** (or `history.begin/end` for gestures). That is what makes it undoable. A change made outside a transaction won't be undone, and may silently end up in the saved file.
+1. **Never draw editor UI inside the page.** Selection boxes, handles, labels, guides and revision comment controls all live in the editor's own document. Serialising the page must give back the user's file plus their edits. Saving prefixes the separately managed change-log and revision-comment blocks; neither may be inserted into the editable DOM.
+2. **Every page change goes through `editor.edit(label, fn, mergeKey?)`** (or `history.begin/end` for gestures). Editor-only revision state uses `history.recordState` after the page transaction has ended. That state is undoable but never included in the immutable exported page-change log: deleting a note must not leave its text behind in journal snapshots. A page change made outside a transaction won't be undone, and may silently end up in the saved file.
 3. **Temporary attributes stay outside transactions.** Example: the `contenteditable` that text editing needs is added before `begin()` and removed after `end()`.
 4. **Watch for cross-frame objects.** Page nodes come from the iframe's window, so `el instanceof HTMLElement` is false for them. Check `namespaceURI` or `localName` instead.
 5. **Think in selections.** `editor.selection` is a list, and `editor.selected` is the main (last picked) element. The panel reads values from the main one and writes to all of them. Commands that move or delete use `editor.selectionRoots`, so a card and its heading selected together are only moved once.
@@ -89,27 +92,27 @@ GitHub Actions does the building and publishing (`.github/workflows/`):
 
 To make a release:
 
-Use three-part semantic versions: **MAJOR.MINOR.PATCH**. Git tags include a `v` prefix, while `package.json` and `package-lock.json` contain the same version without it. The current release is `v0.5.0`.
+Use three-part semantic versions: **MAJOR.MINOR.PATCH**. Git tags include a `v` prefix, while `package.json` and `package-lock.json` contain the same version without it. The current release is `v0.6.0`.
 
-| Change | Example next version from `0.4.0` |
+| Change | Example next version from `0.6.0` |
 |---|---|
-| Bug fix with no breaking changes | `0.4.1` |
-| New feature with no breaking changes | `0.5.0` |
+| Bug fix with no breaking changes | `0.6.1` |
+| New feature with no breaking changes | `0.7.0` |
 | Breaking change | `1.0.0` |
 
 Reset PATCH to zero when MINOR increases; reset MINOR and PATCH to zero when MAJOR increases. Documentation-only updates do not require a new release. Never reuse a published release tag.
 
 1. Run `npm run check`.
-2. Choose the next version, then bump it: for example, `npm version 0.4.1 --no-git-tag-version` for a bug fix. This updates `package.json` and `package-lock.json`. Update the current version in the README and commit the changes.
+2. Choose the next version, then bump it: for example, `npm version 0.6.1 --no-git-tag-version` for a bug fix. This updates `package.json` and `package-lock.json`. Update the current version in the README and commit the changes.
 3. Tag it. The tag's message becomes the release notes:
 
    ```sh
-   git tag -a v0.4.1 -m "Tweakerr v0.4.1
+   git tag -a v0.6.1 -m "Tweakerr v0.6.1
 
    - What's new, one line each"
    ```
 
-4. Push the commit and tag together: `git push --atomic origin main v0.4.1`.
+4. Push the commit and tag together: `git push --atomic origin main v0.6.1`.
 
 The release job stops if the tag doesn't match `package.json`, so a forgotten bump is caught. Keep the attached file named `tweakerr.html`, or the "latest" download link breaks.
 

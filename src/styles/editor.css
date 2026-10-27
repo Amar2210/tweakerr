@@ -305,7 +305,46 @@ body:not(.has-doc) .zoom-label {
   padding: 6px 12px 4px 6px;
 }
 
-/* Collapsed: a thin strip with the "show" arrow and the panel's icon. */
+.side-views {
+  display: flex;
+  gap: 4px;
+  padding: 0 6px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.side-view {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+
+.side-view svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.side-view[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.side-view:hover { border-color: var(--line-strong); }
+.side-view:active,
+.side-strip:active { background: var(--panel-2); }
+.layers-collapsed .side-views { display: none; }
+
+/* Collapsed: a thin strip with independent view icons beneath the show arrow. */
 #app.layers-collapsed {
   --left: 36px;
 }
@@ -1599,7 +1638,7 @@ body:not(.has-doc) .stage {
 @media (max-width: 1000px) {
   #app,
   #app.layers-collapsed {
-    --left: 0px;
+    --left: 36px;
     --right: 280px;
   }
 
@@ -1607,9 +1646,178 @@ body:not(.has-doc) .stage {
     --right: 36px;
   }
 
-  .side.left,
+  /* Keep the rail reachable. An expanded view overlays the canvas at narrow
+     widths instead of squeezing it between two full-size sidebars. */
+  .side.left { position: relative; z-index: 4; width: 240px; box-shadow: var(--shadow); }
+  .layers-collapsed .side.left { width: 36px; box-shadow: none; }
+  /* Reserve a scrollable inset under the overlaid view, so locating even a
+     left-edge target can reveal it without hiding Comments or changing zoom. */
+  #app:not(.layers-collapsed) .canvas { padding-left: 204px; scroll-padding-left: 204px; }
   .brand-name,
-  .file-name {
-    display: none;
-  }
+  .file-name { display: none; }
 }
+
+/* Revision notes are editor UI only; none of these elements enter the page. */
+.comment-layer,
+.comment-borders,
+.comment-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.comment-layer { z-index: 3; }
+
+.comment-target-border {
+  position: absolute;
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+
+.comment-add,
+.comment-marker {
+  position: absolute;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 25px;
+  padding: 3px 7px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.comment-add { width: 25px; height: 25px; padding: 3px; background: var(--panel); }
+.comment-marker { min-width: 46px; font-variant-numeric: tabular-nums; }
+.comment-marker-id { max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
+.comment-add:hover,
+.comment-marker:hover,
+.comment-marker[aria-expanded="true"] { background: var(--accent); color: var(--accent-text); }
+.comment-add:active,
+.comment-marker:active { filter: brightness(.94); }
+
+.comment-add svg,
+.comment-marker svg,
+.comment-save svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.comment-popover {
+  position: fixed;
+  z-index: 80;
+  width: 310px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 90px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.comment-popover-heading,
+.comment-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.comment-popover h2 { margin: 0; font-size: 13px; }
+
+.comment-delete {
+  flex: none;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.comment-delete:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
+.comment-delete:active:not(:disabled) { background: var(--panel-2); }
+.comment-popover-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.comment-popover-actions .comment-help { margin: 0; }
+.comment-save {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: #187741;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.comment-save:hover:not(:disabled) { filter: brightness(1.08); }
+.comment-save:active:not(:disabled) { filter: brightness(.94); }
+.comment-input-label { display: block; margin: 10px 0 5px; font-weight: 600; font-size: 11.5px; }
+.comment-input {
+  display: block;
+  width: 100%;
+  min-height: 108px;
+  max-height: 40vh;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.comment-target-list {
+  margin: 7px 0;
+  padding-left: 17px;
+  color: var(--text-2);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.comment-popover .comment-target-list { max-height: 86px; overflow: auto; }
+.comment-help { margin: 6px 0 0; font-size: 11px; color: var(--text-2); line-height: 1.45; }
+
+.comment-sidebar { background: var(--panel); }
+.comment-section { padding: 11px 10px; }
+.comment-section + .comment-section { border-top: 1px solid var(--line); }
+.comment-section h2 { margin: 0 0 7px; font-size: 11.5px; color: var(--text-2); }
+.comment-history-item { margin-top: 8px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius); }
+.comment-history-heading strong { color: var(--accent); font-size: 11.5px; }
+.comment-request,
+.comment-resolution { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11.5px; }
+.comment-resolution { color: var(--text-2); }
+.comment-edit,
+.comment-locate {
+  padding: 2px 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+}
+.comment-edit { padding: 3px 5px; }
+.comment-locate { vertical-align: top; text-align: left; overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 2px; }
+.comment-edit:hover,
+.comment-locate:hover { background: var(--accent-soft); }
+.comment-edit:active,
+.comment-locate:active { color: var(--text); }
+.comment-target-list li + li { margin-top: 5px; }
+.comment-target-unavailable { display: block; margin-top: 2px; color: var(--text-2); font-style: italic; }

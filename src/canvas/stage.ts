@@ -1,6 +1,7 @@
 import { DEVICE_HEIGHT, DEVICE_WIDTH, type Editor, type OpenFile } from '../editor';
 import { LiveEdits } from '../doc/live';
-import { readChangeLog } from '../doc/changelog';
+import { readChangeLog, type ChangeRecord } from '../doc/changelog';
+import { readRevisionComments, type RevisionComment } from '../doc/comments';
 import type { Box } from '../util/geometry';
 import { drawsItself, pageScripts, settle, watchPage } from './livepage';
 
@@ -53,8 +54,27 @@ export class Stage {
 
   /** Load HTML text into the frame and hand the document to the editor. */
   async mount(html: string, name: string, handle: FileSystemFileHandle | null): Promise<{ live: boolean; missing: string[] }> {
-    const { source: text, records } = readChangeLog(html.replace(/^\uFEFF/, ''));
-    const file: OpenFile = { name, handle, trailingNewline: /\n\s*$/.test(text), source: text, changes: records };
+    let text = html.replace(/^\uFEFF/, '');
+    let changes: ChangeRecord[] = [];
+    let comments: RevisionComment[] = [];
+    // Accept either order of our two leading metadata blocks. Unknown/malformed
+    // blocks remain file content instead of being destructively stripped.
+    for (;;) {
+      const log = readChangeLog(text);
+      if (log.source !== text && !changes.length) {
+        changes = log.records;
+        text = log.source;
+        continue;
+      }
+      const notes = readRevisionComments(text);
+      if (notes.source !== text && !comments.length) {
+        comments = notes.comments;
+        text = notes.source;
+        continue;
+      }
+      break;
+    }
+    const file: OpenFile = { name, handle, trailingNewline: /\n\s*$/.test(text), source: text, changes, comments };
     this.stopWatching?.();
     this.stopWatching = null;
 
@@ -130,7 +150,8 @@ export class Stage {
     this.frame.style.height = `${this.height}px`;
 
     if (this.editor.fit) {
-      const avail = this.canvas.clientWidth - FIT_PADDING;
+      const css = getComputedStyle(this.canvas);
+      const avail = this.canvas.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight) - FIT_PADDING;
       this.editor.zoom = clampZoom(Math.min(1, avail / width));
     }
     const z = this.editor.zoom;

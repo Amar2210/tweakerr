@@ -3,6 +3,7 @@ import { DEVICE_WIDTH, Editor, type Device } from './editor';
 import { Stage } from './canvas/stage';
 import { Overlay } from './canvas/overlay';
 import { TextEditor } from './canvas/textedit';
+import { CommentsUI } from './canvas/comments';
 import { Pointer } from './canvas/pointer';
 import { PropertiesPanel } from './panel/properties';
 import { LayersPanel } from './panel/layers';
@@ -10,6 +11,7 @@ import { deleteSelected, duplicateSelected, nudgeSelected, selectFirstChild, sel
 import { describe, isStructural, isTextEditable } from './doc/kinds';
 import { serializeDocument } from './doc/serialize';
 import { writeChangeLog } from './doc/changelog';
+import { writeRevisionComments } from './doc/comments';
 import { canSaveInPlace, download, fromDrop, pickFile, saveAs, saveToHandle, type PickedFile } from './io/files';
 import { $, h, isTypingTarget } from './util/dom';
 import { icon } from './util/icons';
@@ -20,6 +22,7 @@ const editor = new Editor(frame);
 const stage = new Stage(editor, canvas, $('#stage'), frame);
 const overlay = new Overlay(editor, stage, $('#overlay'));
 const text = new TextEditor(editor, stage);
+const comments = new CommentsUI(editor, stage, $('#comment-history'), () => text.commit());
 new Pointer(editor, stage, overlay, text);
 new PropertiesPanel(editor, $('#props'));
 new LayersPanel(editor, $('#layers'));
@@ -86,45 +89,56 @@ function currentHtml(): string | null {
   text.commit();
   if (!editor.doc || !editor.file) return null;
   const html = editor.live ? editor.live.save() : serializeDocument(editor.doc, { trailingNewline: editor.file.trailingNewline });
-  return writeChangeLog(html, [...(editor.file.changes ?? []), ...(editor.history?.changes ?? [])]);
+  return writeChangeLog(writeRevisionComments(html, editor.comments?.export() ?? []), [...(editor.file.changes ?? []), ...(editor.history?.changes ?? [])]);
+}
+
+function saveSnapshot() {
+  const html = currentHtml();
+  const { file, history } = editor;
+  return html === null || !file || !history ? null : { html, file, history, checkpoint: history.checkpoint() };
+}
+
+function markSnapshotSaved(snapshot: NonNullable<ReturnType<typeof saveSnapshot>>): void {
+  if (editor.file === snapshot.file && editor.history === snapshot.history) editor.markSaved(snapshot.checkpoint);
 }
 
 async function save(): Promise<void> {
-  const html = currentHtml();
-  const file = editor.file;
-  if (html === null || !file) return;
+  const snapshot = saveSnapshot();
+  if (!snapshot) return;
+  const { html, file } = snapshot;
+  const { handle, name } = file;
   try {
-    if (file.handle) {
-      if (await saveToHandle(file.handle, html)) {
-        editor.markSaved();
-        toast(`Saved ${file.name}`);
+    if (handle) {
+      if (await saveToHandle(handle, html)) {
+        if (file.handle === handle) markSnapshotSaved(snapshot);
+        toast(`Saved ${name}`);
       } else {
         toast('Permission to write the file was refused. Try “Save as…”.', 'error');
       }
       return;
     }
-    await saveCopy(html);
+    await saveCopy(snapshot);
   } catch (err) {
     toast(`Save failed: ${errorText(err)}`, 'error');
   }
 }
 
-async function saveCopy(html = currentHtml()): Promise<void> {
-  const file = editor.file;
-  if (html === null || !file) return;
+async function saveCopy(snapshot = saveSnapshot()): Promise<void> {
+  if (!snapshot) return;
+  const { html, file } = snapshot;
   try {
     const handle = canSaveInPlace ? await saveAs(file.name, html) : 'unsupported';
     if (handle === null) return; // cancelled
     if (handle === 'unsupported') {
       download(file.name, html);
-      editor.markSaved();
+      markSnapshotSaved(snapshot);
       toast(`Downloaded ${file.name}`);
       return;
     }
     const f = await handle.getFile();
     file.handle = handle;
     file.name = f.name;
-    editor.markSaved();
+    markSnapshotSaved(snapshot);
     toast(`Saved ${f.name}`);
   } catch (err) {
     toast(`Save failed: ${errorText(err)}`, 'error');
@@ -148,11 +162,15 @@ const commands: Record<string, () => void> = {
   help: () => ($('#help') as HTMLDialogElement).showModal(),
   'toggle-layers': () => setPanelOpen('layers', !isOpen('layers')),
   'toggle-props': () => setPanelOpen('props', !isOpen('props')),
+  'show-layers': () => showLeftView('layers'),
+  'show-comments': () => showLeftView('comments'),
 };
 
 // ------------------------------------------------------------ side panels
 
 type Panel = 'layers' | 'props';
+type LeftView = 'layers' | 'comments';
+let leftView: LeftView = 'layers';
 
 const PANELS = {
   // Arrows point the way the panel slides.
@@ -164,13 +182,13 @@ const isOpen = (panel: Panel) => !$('#app').classList.contains(`${panel}-collaps
 
 /**
  * Show or collapse a side panel; the canvas takes the freed width. Collapsed,
- * it's a thin strip with the arrow (plus the layers icon; both open it again).
+ * it's a thin strip with the arrow and independent Layers/Comments actions.
  */
 function setPanelOpen(panel: Panel, open: boolean): void {
   const p = PANELS[panel];
   $('#app').classList.toggle(`${panel}-collapsed`, !open);
   const btn = $(`#${panel}-toggle`);
-  const label = `${open ? 'Hide' : 'Show'} ${p.name}`;
+  const label = `${open ? 'Hide' : 'Show'} ${panel === 'layers' ? leftView : p.name}`;
   btn.title = label;
   btn.setAttribute('aria-label', label);
   btn.setAttribute('aria-expanded', String(open));
@@ -193,6 +211,39 @@ for (const panel of Object.keys(PANELS) as Panel[]) {
     }
   })());
 }
+
+$('#comments-strip').replaceChildren(icon('comment'));
+$('#layers-view').prepend(icon('layers'));
+$('#comments-view').prepend(icon('comment'));
+
+function showLeftView(view: LeftView): void {
+  if (view === 'comments' && !editor.comments?.all.length) return;
+  leftView = view;
+  updateLeftView();
+  setPanelOpen('layers', true);
+}
+
+function updateLeftView(reset = false): void {
+  const hasComments = !!editor.comments?.all.length;
+  const fallback = leftView === 'comments' && !hasComments;
+  const focus = document.activeElement;
+  if (reset || fallback) leftView = 'layers';
+  $('#comments-view').hidden = $('#comments-strip').hidden = !hasComments;
+  $('#layers').hidden = leftView !== 'layers';
+  $('#comment-history').hidden = leftView !== 'comments';
+  $('#layers-view').setAttribute('aria-pressed', String(leftView === 'layers'));
+  $('#comments-view').setAttribute('aria-pressed', String(leftView === 'comments'));
+  $('#left-title').textContent = leftView === 'layers' ? 'Layers' : 'Comments';
+  setPanelOpen('layers', isOpen('layers'));
+  // Deleting the last entry must not leave keyboard focus in a hidden view.
+  if (fallback && focus?.closest('#comment-history, #comments-view, #comments-strip')) {
+    $(isOpen('layers') ? '#layers-view' : '#layers-strip').focus({ preventScroll: true });
+  }
+}
+
+editor.on('load', () => updateLeftView(true)); // new files always start in Layers
+editor.on('change', () => updateLeftView()); // never jump on the first added note
+updateLeftView();
 
 document.addEventListener('click', (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-cmd], [data-device]');
@@ -442,4 +493,4 @@ updateChrome();
 updateCrumbs();
 
 // Handy for debugging and for the end-to-end tests.
-Object.assign(window, { tweakerr: { editor, stage, overlay, text, serialize: () => currentHtml() } });
+Object.assign(window, { tweakerr: { editor, stage, overlay, text, comments, serialize: () => currentHtml() } });

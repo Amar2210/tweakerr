@@ -40,13 +40,19 @@
         <button type="button" class="tb-btn icon" data-cmd="help" title="Shortcuts and help (?)" aria-label="Help">?</button>
       </header>
 
-      <aside class="side left" aria-label="Layers">
+      <aside class="side left" aria-label="Page views">
         <div class="side-title">
-          <span class="side-title-text">Layers</span>
+          <span class="side-title-text" id="left-title">Layers</span>
           <button type="button" class="side-toggle" id="layers-toggle" data-cmd="toggle-layers" title="Hide layers" aria-label="Hide layers" aria-expanded="true"></button>
         </div>
-        <button type="button" class="side-strip" id="layers-strip" data-cmd="toggle-layers" title="Show layers" aria-label="Show layers"></button>
+        <div class="side-views" role="group" aria-label="Sidebar view">
+          <button type="button" class="side-view" id="layers-view" data-cmd="show-layers" aria-controls="layers" aria-pressed="true">Layers</button>
+          <button type="button" class="side-view" id="comments-view" data-cmd="show-comments" aria-controls="comment-history" aria-pressed="false" hidden>Comments</button>
+        </div>
+        <button type="button" class="side-strip" id="layers-strip" data-cmd="show-layers" title="Show layers" aria-label="Show layers" aria-controls="layers"></button>
+        <button type="button" class="side-strip" id="comments-strip" data-cmd="show-comments" title="Show comments" aria-label="Show comments" aria-controls="comment-history" hidden></button>
         <div class="side-body" id="layers"></div>
+        <div class="side-body comment-sidebar" id="comment-history" tabindex="-1" aria-label="Comments" hidden></div>
       </aside>
 
       <main class="canvas" id="canvas" tabindex="-1">
