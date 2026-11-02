@@ -20,7 +20,7 @@
       "text": "Keep this headline short and bold.",
       "targets": [
         {
-          "key": "92c76515-26e8-43a0-803c-4c2a28fef72c",
+          "key": "15ccb358-b9f0-461c-b073-966d4f44c714",
           "label": "h1#hero-title — Make it yours.",
           "selector": "[id=\"hero-title\"]",
           "identity": {
@@ -39,6 +39,34 @@
     }
   ],
   "dirty": false,
+  "mediaPresentation": {
+    "captureOnlyIconCss": ".comment-add, .comment-marker { visibility: hidden !important; }",
+    "preCommentShots": [
+      "opened",
+      "selected",
+      "type1",
+      "type2",
+      "type3",
+      "text-edited",
+      "font-edited",
+      "hex-before",
+      "hex-edited",
+      "colour-edited",
+      "gradient-edited"
+    ],
+    "allEarlyIconsHidden": true,
+    "normalControlsRestored": true,
+    "sidebar": {
+      "pendingCount": 1,
+      "request": "Keep this headline short and bold.",
+      "targetLabel": "h1#hero-title — Make it yours.",
+      "selectionBeforeLocate": "launch-button",
+      "selectionAfterLocate": "hero-title",
+      "requestAndTargetVisible": true,
+      "popoverRemainsClosed": true
+    },
+    "savedFileHasNoCaptureCss": true
+  },
   "shots": {
     "opened": {
       "headline": [
@@ -68,7 +96,16 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "selected": {
       "headline": [
@@ -91,19 +128,23 @@
       ],
       "popover": null,
       "comment": null,
-      "add": [
-        654.22,
-        134.91,
-        25,
-        25
-      ],
+      "add": null,
       "marker": null,
       "save": [
         174.52,
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "type1": {
       "headline": [
@@ -133,7 +174,16 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "type2": {
       "headline": [
@@ -163,7 +213,16 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "type3": {
       "headline": [
@@ -193,7 +252,16 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "text-edited": {
       "headline": [
@@ -216,19 +284,23 @@
       ],
       "popover": null,
       "comment": null,
-      "add": [
-        654.22,
-        134.91,
-        25,
-        25
-      ],
+      "add": null,
       "marker": null,
       "save": [
         174.52,
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "font-edited": {
       "headline": [
@@ -251,19 +323,23 @@
       ],
       "popover": null,
       "comment": null,
-      "add": [
-        654.22,
-        134.91,
-        25,
-        25
-      ],
+      "add": null,
       "marker": null,
       "save": [
         174.52,
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "hex-before": {
       "headline": [
@@ -291,19 +367,23 @@
         201.52
       ],
       "comment": null,
-      "add": [
-        654.22,
-        134.91,
-        25,
-        25
-      ],
+      "add": null,
       "marker": null,
       "save": [
         174.52,
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "hex-edited": {
       "headline": [
@@ -331,19 +411,23 @@
         201.52
       ],
       "comment": null,
-      "add": [
-        654.22,
-        134.91,
-        25,
-        25
-      ],
+      "add": null,
       "marker": null,
       "save": [
         174.52,
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "colour-edited": {
       "headline": [
@@ -366,19 +450,23 @@
       ],
       "popover": null,
       "comment": null,
-      "add": [
-        654.22,
-        134.91,
-        25,
-        25
-      ],
+      "add": null,
       "marker": null,
       "save": [
         174.52,
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "gradient-edited": {
       "headline": [
@@ -401,19 +489,23 @@
       ],
       "popover": null,
       "comment": null,
-      "add": [
-        474.25,
-        197.23,
-        25,
-        25
-      ],
+      "add": null,
       "marker": null,
       "save": [
         174.52,
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": true,
+        "addVisible": false,
+        "visibleMarkerCount": 0
+      }
     },
     "comment-target": {
       "headline": [
@@ -448,7 +540,16 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": false,
+        "addVisible": true,
+        "visibleMarkerCount": 0
+      }
     },
     "comment-open": {
       "headline": [
@@ -488,7 +589,16 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": null,
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": false,
+        "addVisible": true,
+        "visibleMarkerCount": 0
+      }
     },
     "comment-typing": {
       "headline": [
@@ -533,7 +643,21 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": [
+        121.5,
+        80,
+        111.5,
+        28
+      ],
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": false,
+        "addVisible": true,
+        "visibleMarkerCount": 1
+      }
     },
     "comment-written": {
       "headline": [
@@ -578,7 +702,21 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": [
+        121.5,
+        80,
+        111.5,
+        28
+      ],
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": false,
+        "addVisible": true,
+        "visibleMarkerCount": 1
+      }
     },
     "comment-saved": {
       "headline": [
@@ -618,7 +756,159 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": [
+        121.5,
+        80,
+        111.5,
+        28
+      ],
+      "sidebarPending": null,
+      "sidebarRequest": null,
+      "sidebarTarget": null,
+      "floatingCommentControls": {
+        "captureOnlySuppressed": false,
+        "addVisible": true,
+        "visibleMarkerCount": 1
+      }
+    },
+    "comments-sidebar": {
+      "headline": [
+        404.5475,
+        169.40800000000002,
+        274.68,
+        28.959937500000002
+      ],
+      "frame": [
+        263.94,
+        70,
+        837.12,
+        536.28
+      ],
+      "props": [
+        1141,
+        80,
+        299,
+        812
+      ],
+      "popover": null,
+      "comment": null,
+      "add": [
+        474.25,
+        197.23,
+        25,
+        25
+      ],
+      "marker": [
+        626.22,
+        172.41,
+        49.63,
+        25
+      ],
+      "save": [
+        174.52,
+        8.5,
+        48.22,
+        28
+      ],
+      "sidebarTab": [
+        121.5,
+        80,
+        111.5,
+        28
+      ],
+      "sidebarPending": [
+        0,
+        115,
+        239,
+        140.97
+      ],
+      "sidebarRequest": [
+        19,
+        186.48,
+        201,
+        16.09
+      ],
+      "sidebarTarget": [
+        36,
+        209.58,
+        148.84,
+        19.39
+      ],
+      "floatingCommentControls": {
+        "captureOnlySuppressed": false,
+        "addVisible": true,
+        "visibleMarkerCount": 1
+      }
+    },
+    "comment-located": {
+      "headline": [
+        404.5475,
+        169.40800000000002,
+        274.68,
+        28.959937500000002
+      ],
+      "frame": [
+        263.94,
+        70,
+        837.12,
+        536.28
+      ],
+      "props": [
+        1141,
+        80,
+        299,
+        812
+      ],
+      "popover": null,
+      "comment": null,
+      "add": [
+        654.22,
+        134.91,
+        25,
+        25
+      ],
+      "marker": [
+        626.22,
+        172.41,
+        49.63,
+        25
+      ],
+      "save": [
+        174.52,
+        8.5,
+        48.22,
+        28
+      ],
+      "sidebarTab": [
+        121.5,
+        80,
+        111.5,
+        28
+      ],
+      "sidebarPending": [
+        0,
+        115,
+        239,
+        140.97
+      ],
+      "sidebarRequest": [
+        19,
+        186.48,
+        201,
+        16.09
+      ],
+      "sidebarTarget": [
+        36,
+        209.58,
+        148.84,
+        19.39
+      ],
+      "floatingCommentControls": {
+        "captureOnlySuppressed": false,
+        "addVisible": true,
+        "visibleMarkerCount": 1
+      }
     },
     "saved": {
       "headline": [
@@ -658,7 +948,36 @@
         8.5,
         48.22,
         28
-      ]
+      ],
+      "sidebarTab": [
+        121.5,
+        80,
+        111.5,
+        28
+      ],
+      "sidebarPending": [
+        0,
+        115,
+        239,
+        140.97
+      ],
+      "sidebarRequest": [
+        19,
+        186.48,
+        201,
+        16.09
+      ],
+      "sidebarTarget": [
+        36,
+        209.58,
+        148.84,
+        19.39
+      ],
+      "floatingCommentControls": {
+        "captureOnlySuppressed": false,
+        "addVisible": true,
+        "visibleMarkerCount": 1
+      }
     }
   },
   "errors": [],

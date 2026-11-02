@@ -11,6 +11,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const build = await fs.readFile(path.resolve(here, '../../dist/tweakerr.html'));
 const source = await fs.readFile(path.join(here, 'orbit-dashboard.html'));
 const errors = [], external = [], requests = [], shots = {};
+const preCommentShots = ['opened','selected','type1','type2','type3','text-edited','font-edited','hex-before','hex-edited','colour-edited','gradient-edited'];
+const captureOnlyIconCss = '.comment-add, .comment-marker { visibility: hidden !important; }';
+assert.equal(createHash('sha256').update(build).digest('hex'),'8f2e963e33e2d1982ca18e6bee9dbc0e4cca2305dca2896b5fb4178d4fbad70b');
 const server = createServer((req, res) => {
   requests.push(req.url);
   if (req.url === '/tweakerr.html') { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(build); }
@@ -31,14 +34,27 @@ try {
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(origin + '/tweakerr.html');
   assert.equal(await page.locator('#editor-surface, #ai-settings, #file-intent, [data-cmd="revise-ai"]').count(), 0);
+  // Media presentation only: root-page CSS never enters the imported fixture,
+  // production build, or downloaded HTML. Restore it before the comments beat.
+  const iconStyle = await page.addStyleTag({ content: captureOnlyIconCss });
+  await iconStyle.evaluate(el => el.id = 'demo-pre-comment-icons');
   const snap = async name => {
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const early = preCommentShots.includes(name);
+    if(early) {
+      await expect(page.locator('.comment-add')).toBeHidden();
+      assert.equal(await page.locator('.comment-marker:visible').count(),0);
+    } else {
+      assert.equal(await page.locator('#demo-pre-comment-icons').count(),0);
+      await expect(page.locator('.comment-add')).toBeVisible();
+    }
     await page.screenshot({ path: path.join(here, 'shots', name + '.png') });
     shots[name] = await page.evaluate(() => {
-      const box = sel => { const el = document.querySelector(sel); if (!el || el.hidden) return null; const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(n => Math.round(n * 100) / 100); };
+      const visible = el => !!el && !el.hidden && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+      const box = sel => { const el = document.querySelector(sel); if (!visible(el)) return null; const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(n => Math.round(n * 100) / 100); };
       const { editor, stage } = window.tweakerr;
       const rect = editor.doc.querySelector('#hero-title').getBoundingClientRect(), base = stage.stage.getBoundingClientRect(), z = editor.zoom;
-      return { headline: [base.x + rect.x*z, base.y + rect.y*z, rect.width*z, rect.height*z], frame: box('#frame'), props: box('#props'), popover: box('.popover'), comment: box('.comment-popover'), add: box('.comment-add'), marker: box('.comment-marker'), save: box('.toolbar [data-cmd="save"]') };
+      return { headline: [base.x + rect.x*z, base.y + rect.y*z, rect.width*z, rect.height*z], frame: box('#frame'), props: box('#props'), popover: box('.popover'), comment: box('.comment-popover'), add: box('.comment-add'), marker: box('.comment-marker'), save: box('.toolbar [data-cmd="save"]'), sidebarTab: box('#comments-view'), sidebarPending: box('.comment-section'), sidebarRequest: box('.comment-request'), sidebarTarget: box('.comment-locate'), floatingCommentControls: { captureOnlySuppressed: !!document.querySelector('#demo-pre-comment-icons'), addVisible: visible(document.querySelector('.comment-add')), visibleMarkerCount: [...document.querySelectorAll('.comment-marker')].filter(visible).length } };
     });
     console.log('Captured', name);
   };
@@ -81,11 +97,14 @@ try {
   }
   await page.getByRole('tab', { name: 'Style', exact: true }).click();
   await snap('gradient-edited');
+  await iconStyle.evaluate(el => el.remove());
   // The actual canvas selection, comment Add/input/Save buttons and file Save.
   p = await point('#hero-title'); await page.mouse.click(p.x,p.y);
   await page.getByRole('tab', { name: 'Text', exact: true }).click();
   await snap('comment-target');
   await page.getByRole('button', { name: 'Add comment', exact: true }).click();
+  await expect(page.locator('.comment-input')).toBeVisible();
+  await expect(page.locator('.comment-save')).toBeVisible();
   await snap('comment-open');
   await page.locator('.comment-input').pressSequentially('Keep this headline', { delay: 12 });
   await snap('comment-typing');
@@ -95,6 +114,23 @@ try {
   await expect(page.locator('.comment-popover')).toBeHidden();
   await expect(page.locator('.comment-marker')).toHaveAttribute('aria-label','Open comment 1');
   await snap('comment-saved');
+  // Select another real element first, so the sidebar's Locate action visibly
+  // returns selection to the attached headline rather than replaying a no-op.
+  p = await point('#launch-button'); await page.mouse.click(p.x,p.y);
+  await page.locator('#comments-view').click();
+  await expect(page.getByRole('heading', { name:'Pending (1)', exact:true })).toBeVisible();
+  await expect(page.locator('.comment-request')).toHaveText('Keep this headline short and bold.');
+  await expect(page.locator('.comment-request')).toBeVisible();
+  await expect(page.locator('.comment-locate')).toHaveText('h1#hero-title — Make it yours.');
+  await expect(page.locator('.comment-locate')).toBeVisible();
+  assert.equal(await page.evaluate(() => window.tweakerr.editor.selected.id),'launch-button');
+  await snap('comments-sidebar');
+  await page.locator('.comment-locate').click();
+  assert.equal(await page.evaluate(() => window.tweakerr.editor.selected.id),'hero-title');
+  await expect(page.locator('.comment-popover')).toBeHidden();
+  await expect(page.locator('.comment-request')).toBeVisible();
+  await expect(page.locator('.comment-marker')).toHaveAttribute('aria-label','Open comment 1');
+  await snap('comment-located');
   const download = page.waitForEvent('download');
   await page.locator('.toolbar [data-cmd="save"]').click();
   const result = await download; await result.saveAs(path.join(here,'orbit-dashboard-edited.html'));
@@ -109,8 +145,11 @@ try {
   assert.equal(state.comments.length,1); assert.equal(state.comments[0].text,'Keep this headline short and bold.');
   assert.equal(state.comments[0].targets[0].identity.value,'hero-title');
   assert(saved.includes('Tweakerr revision comments v1') && saved.includes(state.comments[0].text));
+  assert(!saved.includes('demo-pre-comment-icons') && !saved.includes(captureOnlyIconCss));
   assert.deepEqual(errors,[]); assert.deepEqual(external,[]);
-  const report = { result:'PASS', buildSha256:createHash('sha256').update(build).digest('hex'), viewport:{width:1440,height:920,deviceScaleFactor:2}, fixture:'orbit-dashboard.html', savedFile:'orbit-dashboard-edited.html', downloadName:result.suggestedFilename(), ...state, shots, errors, external, requests, providerCalls:0 };
+  const mediaPresentation = { captureOnlyIconCss, preCommentShots, allEarlyIconsHidden:preCommentShots.every(name => shots[name].floatingCommentControls.captureOnlySuppressed && !shots[name].floatingCommentControls.addVisible && shots[name].floatingCommentControls.visibleMarkerCount === 0), normalControlsRestored:Object.entries(shots).filter(([name]) => !preCommentShots.includes(name)).every(([,shot]) => !shot.floatingCommentControls.captureOnlySuppressed && shot.floatingCommentControls.addVisible), sidebar:{pendingCount:1,request:state.comments[0].text,targetLabel:state.comments[0].targets[0].label,selectionBeforeLocate:'launch-button',selectionAfterLocate:'hero-title',requestAndTargetVisible:true,popoverRemainsClosed:true}, savedFileHasNoCaptureCss:true };
+  assert(mediaPresentation.allEarlyIconsHidden && mediaPresentation.normalControlsRestored);
+  const report = { result:'PASS', buildSha256:createHash('sha256').update(build).digest('hex'), viewport:{width:1440,height:920,deviceScaleFactor:2}, fixture:'orbit-dashboard.html', savedFile:'orbit-dashboard-edited.html', downloadName:result.suggestedFilename(), ...state, mediaPresentation, shots, errors, external, requests, providerCalls:0 };
   await fs.writeFile(path.join(here,'capture-validation.json'),JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify({result:report.result,buildSha256:report.buildSha256,shots:Object.keys(shots).length,errors,external,providerCalls:0}));
 } finally {

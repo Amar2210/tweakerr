@@ -1,14 +1,14 @@
 {
   "file": "tweakerr-demo.mp4",
-  "durationSeconds": 18.8,
+  "durationSeconds": 24.4,
   "width": 1920,
   "height": 1080,
   "fps": 30,
-  "frames": 564,
+  "frames": 732,
   "videoCodec": "H.264 High / yuv420p, limited-range BT.709",
   "audioCodec": "AAC LC, stereo, 48 kHz, 192 kb/s target",
-  "bytes": 5390908,
-  "sha256": "905dba0254a26bbd825ea4c7cbc784f055d2bac331ca1482fff81d7b6a1affd1",
+  "bytes": 6193787,
+  "sha256": "8c5440e75082884b8a81635bd5f60cb547ba71d822eb564c765610cbdade9de0",
   "faststart": true,
   "fullFinalAvDecode": "PASS",
   "audioPeakDbfs": -3,
@@ -17,41 +17,74 @@
     "speech": false,
     "source": "soundtrack.wav",
     "sourceSha256": "31872535d16a5d4f71640936a8148595a7a1664eb7f916698dc6b688e1537450",
-    "edit": "0–11.25 + 7.5–11.25 + 11.25–15 + 0.05s silence; 40ms time-preserving crossfade at 11.25s",
-    "seconds": 18.8,
+    "edit": "0–11.25 + 1.875–11.25 + 11.25–15 + 0.025s silence; 40ms time-preserving crossfade at 11.25s",
+    "seconds": 24.4,
     "samplePeakDbfs": -2.8537035083195255,
-    "rmsDbfs": -18.723619560368817,
-    "sha256": "defb0262f56504f71b9661190b25e0bb4cc981eb7cb12f64148eba6be36cebb5"
+    "rmsDbfs": -18.688163841684077,
+    "sha256": "5c05783c44c3863dd2ceef3e45ba6bf0b844fffa1c18afffdee09e50f5e062b6"
   },
   "poster": {
     "file": "tweakerr-demo-poster.jpg",
-    "seconds": 13.8,
-    "bytes": 156298,
-    "sha256": "09f6a2508341561e69a2e5f68fbd246003b44103aa28e1147acf5602486005b3"
+    "seconds": 19.4,
+    "bytes": 146806,
+    "sha256": "14361fd2ffd729f97198c8da584f11aac5e00201376203b9638a25132850c753"
   },
   "decodedContactSheetTimes": [
     0.8,
-    2.9,
     5.4,
     8.9,
-    11.4,
-    13.8,
-    15.8,
-    18.2
+    11.8,
+    15,
+    18,
+    19.4,
+    21.2,
+    23.8
   ],
   "captureBuildSha256": "8f2e963e33e2d1982ca18e6bee9dbc0e4cca2305dca2896b5fb4178d4fbad70b",
   "providerCalls": 0,
   "externalRequests": 0,
+  "mediaPresentation": {
+    "captureOnlyIconCss": ".comment-add, .comment-marker { visibility: hidden !important; }",
+    "preCommentShots": [
+      "opened",
+      "selected",
+      "type1",
+      "type2",
+      "type3",
+      "text-edited",
+      "font-edited",
+      "hex-before",
+      "hex-edited",
+      "colour-edited",
+      "gradient-edited"
+    ],
+    "allEarlyIconsHidden": true,
+    "normalControlsRestored": true,
+    "sidebar": {
+      "pendingCount": 1,
+      "request": "Keep this headline short and bold.",
+      "targetLabel": "h1#hero-title — Make it yours.",
+      "selectionBeforeLocate": "launch-button",
+      "selectionAfterLocate": "hero-title",
+      "requestAndTargetVisible": true,
+      "popoverRemainsClosed": true
+    },
+    "savedFileHasNoCaptureCss": true,
+    "commentControlsStartSeconds": 12.2,
+    "sidebarStartSeconds": 17,
+    "sidebarEndSeconds": 20.6,
+    "sidebarSeconds": 3.6
+  },
   "chromePlayback": {
     "result": "PASS",
-    "duration": 18.8,
+    "duration": 24.4,
     "width": 1920,
     "height": 1080,
     "playback": {
       "ended": true,
       "rate": 2,
-      "frameCallbacks": 491,
-      "lastPresentedSeconds": 18.766667,
+      "frameCallbacks": 533,
+      "lastPresentedSeconds": 24.366667,
       "milestones": [
         {
           "requested": 0.8,
@@ -66,38 +99,51 @@
           "presented": 8.9
         },
         {
-          "requested": 11.4,
-          "presented": 11.4
+          "requested": 11.8,
+          "presented": 11.8
         },
         {
-          "requested": 13.8,
-          "presented": 13.8
+          "requested": 15,
+          "presented": 15.033333
         },
         {
-          "requested": 15.8,
-          "presented": 15.8
+          "requested": 18,
+          "presented": 18.033333
         },
         {
-          "requested": 18.2,
-          "presented": 18.2
+          "requested": 19.4,
+          "presented": 19.433333
+        },
+        {
+          "requested": 21.2,
+          "presented": 21.2
+        },
+        {
+          "requested": 23.8,
+          "presented": 23.8
         }
       ]
     },
     "seeks": [
       {
-        "requested": 5.4,
-        "presented": 5.433333,
-        "pictureSha256": "3a28141ada1ce9e1db562c883cc012b240779b22a08ed8770bb6986bf78784bb"
+        "requested": 11.8,
+        "presented": 11.833333,
+        "pictureSha256": "08fbb12a14231bab9b072e4d557804ef8043b0a460de851b8bddd269af393648"
       },
       {
-        "requested": 13.8,
-        "presented": 13.833333,
-        "pictureSha256": "2f0208657c32fc3e9e16b1ea841db86c2f3bcc4e5ee2229e8c7b1dee2e00d904"
+        "requested": 15,
+        "presented": 15.033333,
+        "pictureSha256": "089705c47a33bff29466ba618ed028ae337d629a367238f05b61ad7c6e1e3100"
       },
       {
-        "requested": 18.2,
-        "presented": 18.233333,
-        "pictureSha256": "be416b1bbb491fb096f9b5bd6c788bf36b508cd3c8be0e6b000a3641ae45af0e"
+        "requested": 19.4,
+        "presented": 19.433333,
+        "pictureSha256": "ffc554eab42810c9b4d382f49f3eefa669c43fac22ec179a658cbb1d58865bd0"
+      },
+      {
+        "requested": 21.2,
+        "presented": 21.233333,
+        "pictureSha256": "f8704970363dc8338209e085e17372d1b09f255be621dae938e1eb55dbf192ba"
       }
     ],
     "errors": [],

@@ -4,7 +4,7 @@ const ctx = canvas.getContext('2d');
 const W = 1920, H = 1080;
 const lime = '#caff79', violet = '#a594ff', white = '#f4f5f0';
 const images = {};
-const shots = ['opened', 'selected', 'type1', 'type2', 'type3', 'text-edited', 'font-edited', 'hex-before', 'hex-edited', 'colour-edited', 'gradient-edited', 'comment-target', 'comment-open', 'comment-typing', 'comment-written', 'comment-saved', 'saved'];
+const shots = ['opened', 'selected', 'type1', 'type2', 'type3', 'text-edited', 'font-edited', 'hex-before', 'hex-edited', 'colour-edited', 'gradient-edited', 'comment-target', 'comment-open', 'comment-typing', 'comment-written', 'comment-saved', 'comments-sidebar', 'comment-located', 'saved'];
 const assetsReady = Promise.all([...shots.map(name => [name, `shots/${name}.png`]), ['logo', '../logo.svg']].map(([name, src]) => new Promise((resolve, reject) => {
   const img = new Image();
   img.onload = () => { images[name] = img; resolve(); };
@@ -113,32 +113,48 @@ function refine(t) {
 }
 function comment(t) {
   brand();
-  const name = t < 12.65 ? 'comment-target' : t < 13 ? 'comment-open' : t < 13.3 ? 'comment-typing' : t < 14.9 ? 'comment-written' : 'comment-saved';
+  const name = t < 12.85 ? 'comment-target' : t < 13.4 ? 'comment-open' : t < 14.05 ? 'comment-typing' : t < 16.2 ? 'comment-written' : 'comment-saved';
   const p = ease((t-12.2)/.45);
   // One continuous crop keeps the real element, #1 marker and complete dialog together.
   card(name, 240, 140 + (1-p)*45, 1440, 815.3, [360,118,680,385], -.009*(1-p));
-  if(t<12.85)cursor(888,202,t>12.55?cap((t-12.55)/.3):0);
-  if(t>14.65&&t<15.2)cursor(1360,820,cap((t-14.8)/.35));
+  if(t<13.05)cursor(888,202,t>12.75?cap((t-12.75)/.3):0);
+  if(t>15.95&&t<16.5)cursor(1360,820,cap((t-16.1)/.35));
   caption('Comment.');
+}
+function sidebar(t) {
+  brand();
+  const name=t<18.3?'comments-sidebar':'comment-located';
+  const p=ease((t-17)/.45);
+  // Enlarge the actual left Comments view, including its header, active tab,
+  // Pending (1), request and Locate target; keep its attached canvas alongside.
+  card(name,96-(1-p)*45,250,600,540,[0,44,240,216],-.006*(1-p));
+  card(name,785+(1-p)*45,181,1040,692,[390,132,520,346],.006*(1-p));
+  if(t<18.9){
+    const q=smooth((t-17.65)/.6);
+    cursor(lerp(541,371,q),lerp(375,690,q),t>18.2?cap((t-18.2)/.4):0);
+  }
+  caption('Comments.');
 }
 function save(t) {
   brand();
-  card('saved',130,153,1660,785,[0,0,1440,681]);
-  cursor(350,182,cap((t-15.5)/.5));
+  // Actual toolbar and saved page, without shrinking the preceding sidebar hold.
+  card('saved',130,153,1660,74.7,[0,0,1000,45]);
+  card('saved',415,241,1090,696.3,pageCrop);
+  cursor(460,187,cap((t-20.75)/.5));
   caption('Save.');
 }
 function outro(t) {
-  const p=ease((t-16.3)/.8);
+  const p=ease((t-21.9)/.8);
   s.save();s.globalAlpha=(1-p)*.7;card('saved',300,160,1320,844,pageCrop,0);s.restore();
   const logoY=lerp(480,301,p);
   s.drawImage(images.logo,900,logoY,120,120);
   text('tweakerr',960,logoY+195,88,white,700,'center');
   s.save();s.globalAlpha=p;text('Make it yours.',960,624+(1-p)*22,48,lime,400,'center');text('amar2210.github.io/tweakerr',960,886,24,'#8d94a5',400,'center');s.restore();
 }
-const scenes=[intro,overview,edit,restyle,refine,comment,save,outro];
-const starts=[0,1.8,4,6.6,10.1,12.2,15.4,16.3];
+const scenes=[intro,overview,edit,restyle,refine,comment,sidebar,save,outro];
+const starts=[0,1.8,4,6.6,10.1,12.2,17,20.6,21.9];
 window.assetsReady=assetsReady;
-window.videoSpec={width:W,height:H,fps:30,duration:18.8};
+window.videoSpec={width:W,height:H,fps:30,duration:24.4,commentControlsStart:12.2,sidebarStart:17,sidebarEnd:20.6};
 window.renderFrame=async t=>{
   await assetsReady;backdrop(t);
   const i=Math.max(0,starts.findLastIndex(start=>t>=start));

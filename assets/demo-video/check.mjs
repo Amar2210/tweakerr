@@ -33,7 +33,7 @@ try {
     const technical={duration:v.duration,width:v.videoWidth,height:v.videoHeight};
     v.playbackRate=2;
     const playback=await new Promise((resolve,reject)=>{
-      let count=0,last=-1;const milestones=[],targets=[.8,5.4,8.9,11.4,13.8,15.8,18.2];
+      let count=0,last=-1;const milestones=[],targets=[.8,5.4,8.9,11.8,15,18,19.4,21.2,23.8];
       const timeout=setTimeout(()=>{v.pause();reject(Error('Film playback stalled'));},20000);
       v.onerror=()=>{clearTimeout(timeout);reject(Error('Film decode failed'));};
       v.onended=()=>{clearTimeout(timeout);resolve({ended:true,rate:2,frameCallbacks:count,lastPresentedSeconds:last,milestones});};
@@ -46,7 +46,7 @@ try {
       v.requestVideoFrameCallback(frame);v.play().catch(reject);
     });
     const seeks=[];
-    for(const t of [5.4,13.8,18.2]) {
+    for(const t of [11.8,15,19.4,21.2]) {
       v.pause();v.playbackRate=1;
       await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Seek stalled')),5000);v.onseeked=()=>{clearTimeout(timer);resolve();};v.currentTime=t;});
       const picture=await new Promise((resolve,reject)=>{
@@ -59,12 +59,12 @@ try {
     }
     return {...technical,playback,seeks};
   });
-  assert.equal(check.duration,18.8);assert.equal(check.width,1920);assert.equal(check.height,1080);
-  assert(check.playback.ended&&check.playback.lastPresentedSeconds>=18.7&&check.playback.frameCallbacks>200);
-  assert.equal(check.playback.milestones.length,7);
+  assert.equal(check.duration,24.4);assert.equal(check.width,1920);assert.equal(check.height,1080);
+  assert(check.playback.ended&&check.playback.lastPresentedSeconds>=24.3&&check.playback.frameCallbacks>200);
+  assert.equal(check.playback.milestones.length,9);
   for(const mark of check.playback.milestones)assert(mark.presented-mark.requested<.3);
   for(const seek of check.seeks){assert(Math.abs(seek.presented-seek.requested)<.2);seek.pictureSha256=createHash('sha256').update(seek.pixels).digest('hex');delete seek.pixels;}
-  assert.equal(new Set(check.seeks.map(x=>x.pictureSha256)).size,3);
+  assert.equal(new Set(check.seeks.map(x=>x.pictureSha256)).size,4);
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
   validation.chromePlayback={result:'PASS',...check,errors,external,audioAuditioned:false};
   fs.writeFileSync(path.join(root,'validation.json'),JSON.stringify(validation,null,2)+'\n');
