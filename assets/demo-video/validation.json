@@ -1,0 +1,107 @@
+{
+  "file": "tweakerr-demo.mp4",
+  "durationSeconds": 18.8,
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "frames": 564,
+  "videoCodec": "H.264 High / yuv420p, limited-range BT.709",
+  "audioCodec": "AAC LC, stereo, 48 kHz, 192 kb/s target",
+  "bytes": 5390908,
+  "sha256": "905dba0254a26bbd825ea4c7cbc784f055d2bac331ca1482fff81d7b6a1affd1",
+  "faststart": true,
+  "fullFinalAvDecode": "PASS",
+  "audioPeakDbfs": -3,
+  "audioMeanDbfs": -18.7,
+  "music": {
+    "speech": false,
+    "source": "soundtrack.wav",
+    "sourceSha256": "31872535d16a5d4f71640936a8148595a7a1664eb7f916698dc6b688e1537450",
+    "edit": "0–11.25 + 7.5–11.25 + 11.25–15 + 0.05s silence; 40ms time-preserving crossfade at 11.25s",
+    "seconds": 18.8,
+    "samplePeakDbfs": -2.8537035083195255,
+    "rmsDbfs": -18.723619560368817,
+    "sha256": "defb0262f56504f71b9661190b25e0bb4cc981eb7cb12f64148eba6be36cebb5"
+  },
+  "poster": {
+    "file": "tweakerr-demo-poster.jpg",
+    "seconds": 13.8,
+    "bytes": 156298,
+    "sha256": "09f6a2508341561e69a2e5f68fbd246003b44103aa28e1147acf5602486005b3"
+  },
+  "decodedContactSheetTimes": [
+    0.8,
+    2.9,
+    5.4,
+    8.9,
+    11.4,
+    13.8,
+    15.8,
+    18.2
+  ],
+  "captureBuildSha256": "8f2e963e33e2d1982ca18e6bee9dbc0e4cca2305dca2896b5fb4178d4fbad70b",
+  "providerCalls": 0,
+  "externalRequests": 0,
+  "chromePlayback": {
+    "result": "PASS",
+    "duration": 18.8,
+    "width": 1920,
+    "height": 1080,
+    "playback": {
+      "ended": true,
+      "rate": 2,
+      "frameCallbacks": 491,
+      "lastPresentedSeconds": 18.766667,
+      "milestones": [
+        {
+          "requested": 0.8,
+          "presented": 0.8
+        },
+        {
+          "requested": 5.4,
+          "presented": 5.4
+        },
+        {
+          "requested": 8.9,
+          "presented": 8.9
+        },
+        {
+          "requested": 11.4,
+          "presented": 11.4
+        },
+        {
+          "requested": 13.8,
+          "presented": 13.8
+        },
+        {
+          "requested": 15.8,
+          "presented": 15.8
+        },
+        {
+          "requested": 18.2,
+          "presented": 18.2
+        }
+      ]
+    },
+    "seeks": [
+      {
+        "requested": 5.4,
+        "presented": 5.433333,
+        "pictureSha256": "3a28141ada1ce9e1db562c883cc012b240779b22a08ed8770bb6986bf78784bb"
+      },
+      {
+        "requested": 13.8,
+        "presented": 13.833333,
+        "pictureSha256": "2f0208657c32fc3e9e16b1ea841db86c2f3bcc4e5ee2229e8c7b1dee2e00d904"
+      },
+      {
+        "requested": 18.2,
+        "presented": 18.233333,
+        "pictureSha256": "be416b1bbb491fb096f9b5bd6c788bf36b508cd3c8be0e6b000a3641ae45af0e"
+      }
+    ],
+    "errors": [],
+    "external": [],
+    "audioAuditioned": false
+  }
+}
