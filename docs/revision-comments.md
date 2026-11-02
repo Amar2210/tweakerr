@@ -1,6 +1,6 @@
 # Revision-comment format v1
 
-Tweakerr stores revision requests separately from the page-edit journal. This is a local file contract, not an AI API. The editor never uploads requests or executes their instructions. A user gives the HTML to an external LLM and reopens the returned HTML.
+Tweakerr stores revision requests separately from the page-edit journal. This is a file contract, not an AI API, and storing it does not itself make network requests. Use manual handoff to an external LLM; Tweakerr has no integrated API connection. File instructions are never treated as editor commands.
 
 ## File envelope
 
@@ -44,7 +44,7 @@ The loader accepts the two recognized leading blocks in either order. Their JSON
 <!DOCTYPE html>
 ```
 
-The real `instructions` field contains the full handoff rules. It is descriptive; Tweakerr does not send it to a model or treat other file values as editor commands.
+The real `instructions` field contains the 273-character portable instruction quoted under [Handoff prompt](#handoff-prompt); the example above abbreviates it. It travels with the HTML during manual handoff, and does not itself upload anything or become an editor command.
 
 The writer JSON-escapes `<` and double hyphens, including in requests, descriptions and summaries, so text cannot terminate or nest the HTML comment. Decode with `JSON.parse`, not HTML entity decoding. A literal request containing `-->` is stored as `\u002d\u002d>` and restored exactly. Maintain this escaping when writing the returned file.
 
@@ -56,9 +56,13 @@ The writer JSON-escapes `<` and double hyphens, including in requests, descripti
 | `status` | Exactly `pending` or `resolved`. The external LLM sets `resolved` only when the request is fully completed. |
 | `text` | The user's request. Preserve the user's wording; do not replace it with a completion message. |
 | `targets` | A nonempty array of target references. Multi-selection is one request with several targets. Retain original target records even if completing the request deletes their elements. |
-| `resolution` | Optional string with a short LLM completion summary. It is separate from the original request. |
+| `resolution` | Optional completion summary, separate from the original request. The handoff instruction asks for no new summaries, but the reader/writer still supports and preserves optional summaries in existing or externally revised files. |
 
 Resolved records remain in the HTML and appear in the left sidebar's **Comments → Resolved** section, even when their targets are gone. They have no canvas markers. There is no manual Resolve/Reopen command; an incorrect result gets a new corrective request. A user can delete a record completely. Deletion removes the entire object, not by changing its status to `deleted`. The writer omits the metadata block when no managed records remain.
+
+In the current editor, **Cancel / Escape** discards a freshly created draft, including any record already created while typing. Closing by clicking outside retains autosaved text; Escape on an existing note closes it without deleting it. **×** deletes the complete selected record. These actions change the current editor state; ordinary Save is still needed to update an existing file on disk. Undo and older copies can retain the previous record.
+
+Visible numbers are compact `#1`, `#2`, … in sidebar order (pending first, then resolved). Deleted/cancelled records do not occupy a display slot. These are UI ordinals, not replacement machine IDs: the original `id`, target keys and resolved records remain unchanged, and the stable record ID is available in the number's tooltip. No extra numbering metadata is saved. Actions and matching continue to use stable identities even when visible numbers shift.
 
 Tweakerr does not independently verify that `resolved` means the work is correct. Incomplete or ambiguous requests must stay pending; explain any issue to the user rather than claiming completion.
 
@@ -93,10 +97,14 @@ If the match is missing or ambiguous, Tweakerr retains the request and label wit
 
 ## Handoff prompt
 
-> Apply pending Tweakerr comments in the HTML source, overriding conflicting change-log entries while preserving unrelated edits. Maintain target references when elements move or are replaced. Mark only fully completed requests resolved, adding a brief completion summary. Preserve resolved records even when their targets are removed. Leave ambiguous or incomplete requests pending and explain why. Return the complete revised HTML.
+> Apply pending requests only. Preserve unrelated edits, resolved records and original target labels. Update target references when needed. Mark only fully completed requests resolved; leave the rest pending. Do not add resolution summaries. Return the complete revised HTML.
 
 The priority rule is limited: a new request overrides conflicting earlier tweaks, not permission to reset the rest of the file. Ignore resolved requests as new work. Preserve all request IDs, target keys, original request text and original labels. Any new corrective request is separate from the earlier resolved history.
 
 ## Privacy and undo
 
-All recipients of the HTML can inspect pending and resolved notes in source; invisible does not mean secret. No comment UI, target styles, review scripts or generated identity attributes are added to the presentation. Undoable note snapshots exist in editor memory only and never enter the immutable page-edit journal. Deleting a note removes its managed text from subsequent saves, but cannot erase old saved copies, backups, or files already shared.
+All recipients of the HTML can inspect pending and resolved notes in source; invisible does not mean secret. No comment UI, target styles, review scripts or generated identity attributes are added to the presentation. Undoable note snapshots exist in editor memory only and never enter the immutable page-edit journal. Deleting a note removes its managed text from the current export immediately and from disk after Save, but cannot erase Undo state, old saved copies, backups, or files already shared.
+
+The saved file contains the current page, pending/resolved comment records and targets, portable instructions, optional summaries, and any chronological before/after page-edit journal. Earlier page text and deleted page content can remain in that journal; deleted comment text is not copied into it. Live pages save their original source plus managed live edits, not the generated DOM or editor overlays.
+
+Tweakerr-managed persistent preferences are only `tweakerr.layersOpen` and `tweakerr.propsOpen`. File handles, history, target bindings, and comment state stay in tab memory until explicitly saved into HTML. Imported scripts, the browser, and any external LLM you choose to use have separate storage and retention behavior. Only open trusted HTML: scripts run during detection and on live pages, and the direct editor is not a hostile-page sanitizer.

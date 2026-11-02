@@ -7,6 +7,16 @@ import { h } from '../util/dom';
 import { icon } from '../util/icons';
 import type { Stage } from './stage';
 
+interface CommentView {
+  bounds: Box | null;
+  occluders: Box[];
+}
+interface VisibleTarget {
+  box: Box;
+  bounds: Box;
+  occluders: Box[];
+}
+
 /** Comment controls are siblings of the page overlay, never children of the iframe. */
 export class CommentsUI {
   private root = h('div', { class: 'comment-layer' });
@@ -17,7 +27,16 @@ export class CommentsUI {
     class: 'comment-add', title: 'Add comment',
     attrs: { type: 'button', 'aria-label': 'Add comment' }, on: { click: () => this.start() },
   }, icon('comment'));
-  private popover = h('section', { class: 'comment-popover', attrs: { role: 'dialog', 'aria-labelledby': 'comment-popover-title' } });
+  private popover = h('section', {
+    class: 'comment-popover', attrs: { role: 'dialog', 'aria-labelledby': 'comment-popover-title' },
+    on: { keydown: (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        this.dismiss();
+      }
+    } },
+  });
   private heading = h('h2', { attrs: { id: 'comment-popover-title' } });
   private remove = h('button', {
     class: 'comment-delete', text: '×', title: 'Delete this comment completely',
@@ -30,20 +49,18 @@ export class CommentsUI {
     on: {
       input: () => this.onInput(),
       focus: () => { this.editKey = `comment-typing-${++this.session}`; },
-      keydown: (event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          event.stopPropagation();
-          this.close(true);
-        }
-      },
     },
   });
   private save = h('button', {
     class: 'comment-save', title: 'Save comment in the editor and close (keeps it pending)',
     attrs: { type: 'button' }, on: { click: () => this.saveComment() },
   }, icon('check'), h('span', { text: 'Save comment' }));
+  private cancel = h('button', {
+    class: 'btn comment-cancel', text: 'Cancel', title: 'Discard this new comment completely',
+    attrs: { type: 'button', 'aria-label': 'Cancel new comment' }, on: { click: () => this.dismiss() },
+  });
   private hint = h('p', { class: 'comment-help' });
+  private newDraft = false;
   private openId: string | null = null;
   private draftTargets: CommentTarget[] | null = null;
   private anchor: HTMLElement | null = null;
@@ -65,7 +82,8 @@ export class CommentsUI {
       this.targetList,
       h('label', { class: 'comment-input-label', text: 'Revision request', attrs: { for: 'comment-request' } }),
       this.input,
-      h('div', { class: 'comment-popover-actions' }, this.hint, this.save),
+      h('div', { class: 'comment-popover-actions' }, this.hint,
+        h('div', { class: 'comment-popover-buttons' }, this.save, this.cancel)),
     );
     this.popover.hidden = true;
     document.body.append(this.popover);
@@ -124,6 +142,7 @@ export class CommentsUI {
       this.editor.notify('The selection changed while the page redrew. Select its current elements before commenting.');
       return;
     }
+    this.newDraft = true;
     this.input.value = '';
     this.show();
   }
@@ -160,6 +179,13 @@ export class CommentsUI {
     this.editor.notify('Comment saved in editor · still pending');
   }
 
+  /** Only an explicitly cancelled fresh draft is discarded; other closes keep autosave. */
+  private dismiss(): void {
+    const id = this.newDraft ? this.openId : null;
+    this.close(true);
+    if (id && this.editor.comments?.get(id)?.status === 'pending') this.editor.comments.delete(id);
+  }
+
   private delete(id: string): void {
     this.finishPageText();
     const wasOpen = this.openId === id;
@@ -174,6 +200,7 @@ export class CommentsUI {
   close(restoreFocus = false): void {
     const wasOpen = !this.popover.hidden;
     this.popover.hidden = true;
+    this.newDraft = false;
     this.openId = null;
     this.draftTargets = null;
     if (restoreFocus && wasOpen) {
@@ -202,8 +229,16 @@ export class CommentsUI {
     this.borders.replaceChildren();
     const usedMarkers = new Set<string>();
     const occupied: Box[] = [];
+    const view = this.canvasView();
+    // Shared requests and the selection often refer to the same element. Pay
+    // for page geometry/hit testing only once per target in this animation frame.
+    const visible = new Map<Element, VisibleTarget | null>();
+    const measure = (el: Element) => {
+      if (!visible.has(el)) visible.set(el, this.visibleBox(el, view));
+      return visible.get(el)!;
+    };
     const selected = this.editor.selected;
-    const selectedBox = selected && this.visibleBox(selected);
+    const selectedBox = selected && measure(selected);
     this.add.hidden = !selectedBox || !!this.editor.busy;
     // Pack persistent markers in record order, independent of selection/drafts.
     // Later notes yield to earlier slots, never the other way around.
@@ -213,37 +248,45 @@ export class CommentsUI {
       for (let index = 0; index < targets.length; index++) {
         const target = targets[index];
         if (!target) continue;
-        const box = this.visibleBox(target);
-        if (!box) continue;
+        const targetView = measure(target);
+        if (!targetView) continue;
         const border = h('div', { class: 'comment-target-border', dataset: { commentId: comment.id } });
-        place(border, box);
+        place(border, targetView.box);
         this.borders.append(border);
+        clipBorder(border, targetView);
         const key = `${comment.id}:${comment.targets[index].key}`;
         usedMarkers.add(key);
         let marker = this.markerNodes.get(key);
         if (!marker) {
           marker = h('button', {
             class: 'comment-marker', dataset: { commentId: comment.id },
-            attrs: { type: 'button', 'aria-label': `Open comment ${comment.id}` },
+            attrs: { type: 'button' },
             on: { click: () => this.open(comment.id) },
-          }, icon('comment'), h('span', { class: 'comment-marker-id', text: comment.id }));
+          }, icon('comment'), h('span', { class: 'comment-marker-id' }));
           this.markerNodes.set(key, marker);
           this.markers.append(marker);
         }
-        marker.title = `${comment.id}: ${comment.text || 'Empty request'}`;
+        const number = comments.displayNumber(comment.id)!;
+        marker.querySelector('.comment-marker-id')!.textContent = `#${number}`;
+        marker.title = `Comment ${number}: ${comment.text || 'Empty request'}\nRecord ID: ${comment.id}`;
+        marker.setAttribute('aria-label', `Open comment ${number}`);
         marker.setAttribute('aria-expanded', String(this.openId === comment.id));
         marker.hidden = !!this.editor.busy;
-        const position = markerPosition(box, marker.offsetWidth || 46, marker.offsetHeight || 25, this.stage.stage.clientWidth, occupied);
-        marker.style.left = `${position.left}px`;
-        marker.style.top = `${position.top}px`;
-        occupied.push(position);
+        let position = markerPosition(targetView.box, marker.offsetWidth || 46, marker.offsetHeight || 25, targetView.bounds, occupied, targetView.occluders);
+        if (position) position = this.controlPosition(target, position, targetView, occupied);
+        marker.hidden ||= !position;
+        if (position) {
+          marker.style.left = `${position.left}px`;
+          marker.style.top = `${position.top}px`;
+          occupied.push(position);
+        }
       }
     }
     for (const [key, marker] of this.markerNodes) if (!usedMarkers.has(key)) {
       marker.remove();
       this.markerNodes.delete(key);
     }
-    if (selectedBox && !this.add.hidden) this.positionAdd(selectedBox, occupied);
+    if (selected && selectedBox && !this.add.hidden) this.positionAdd(selected, selectedBox, occupied);
     if (!this.popover.hidden) {
       const comment = this.openId && comments?.get(this.openId);
       if (this.openId && !comment) this.close();
@@ -255,21 +298,17 @@ export class CommentsUI {
     }
   }
 
-  private positionAdd(anchor: Box, markers: readonly Box[]): void {
+  private positionAdd(target: Element, view: VisibleTarget, markers: readonly Box[]): void {
     const stage = this.stage.stage.getBoundingClientRect();
-    const canvas = this.stage.canvas.getBoundingClientRect();
-    const left = Math.max(0, canvas.left + this.stage.canvas.clientLeft - stage.left);
-    const top = Math.max(0, canvas.top + this.stage.canvas.clientTop - stage.top);
-    const right = Math.min(this.stage.stage.clientWidth, canvas.left + this.stage.canvas.clientLeft + this.stage.canvas.clientWidth - stage.left);
-    const bottom = Math.min(this.stage.stage.clientHeight, canvas.top + this.stage.canvas.clientTop + this.stage.canvas.clientHeight - stage.top);
     // Overlay renders first. Measure its actual label/handles, including their
     // transformed hit rectangles, rather than guessing from the target's size.
     const controls = [...this.stage.stage.querySelectorAll('.ov-label:not([hidden]), .ov-handle')].map((el) => {
       const rect = el.getBoundingClientRect();
       return { left: rect.left - stage.left, top: rect.top - stage.top, width: rect.width, height: rect.height };
     });
-    const position = addPosition(anchor, this.add.offsetWidth, this.add.offsetHeight,
-      { left, top, width: right - left, height: bottom - top }, [...markers, ...controls]);
+    const occupied = [...markers, ...controls];
+    let position = addPosition(view.box, this.add.offsetWidth, this.add.offsetHeight, view.bounds, [...occupied, ...view.occluders]);
+    if (position) position = this.controlPosition(target, position, view, occupied);
     this.add.hidden = !position;
     if (position) {
       this.add.style.left = `${position.left}px`;
@@ -279,9 +318,12 @@ export class CommentsUI {
 
   private syncPopover(): void {
     const comment = this.openId ? this.editor.comments?.get(this.openId) : null;
-    this.heading.textContent = comment ? `Comment ${comment.id}` : 'New comment';
+    const number = comment ? this.editor.comments!.displayNumber(comment.id) : null;
+    this.heading.textContent = comment ? `Comment ${number}` : 'New comment';
+    this.heading.title = comment ? `Record ID: ${comment.id}` : '';
     this.remove.disabled = !comment;
-    this.remove.setAttribute('aria-label', comment ? `Delete comment ${comment.id}` : 'Delete comment');
+    this.remove.setAttribute('aria-label', comment ? `Delete comment ${number}` : 'Delete comment');
+    this.cancel.hidden = !this.newDraft;
     this.targetList.replaceChildren(...(comment?.targets ?? this.draftTargets ?? []).map((target) => h('li', { text: target.label })));
     const unavailable = comment ? this.editor.comments!.targets(comment).filter((target) => !target).length : 0;
     this.hint.textContent = unavailable ? `${unavailable} target(s) unavailable · still pending · Save the page to write HTML`
@@ -304,44 +346,171 @@ export class CommentsUI {
     this.popover.style.top = `${Math.max(50, Math.min(y, window.innerHeight - height - 32))}px`;
   }
 
-  /** Respect clipping inside the user's page, not just the outer editor canvas. */
-  private visibleBox(el: Element): Box | null {
+  /** The canvas may scroll underneath an expanded editor sidebar at narrow widths. */
+  private canvasView(): CommentView {
+    const stage = this.stage.stage.getBoundingClientRect();
+    const canvas = this.stage.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const left = Math.max(0, rect.left + canvas.clientLeft);
+    const top = Math.max(0, rect.top + canvas.clientTop);
+    const right = Math.min(window.innerWidth, rect.left + canvas.clientLeft + canvas.clientWidth);
+    const bottom = Math.min(window.innerHeight, rect.top + canvas.clientTop + canvas.clientHeight);
+    const bounds = intersect({ left: left - stage.left, top: top - stage.top, width: right - left, height: bottom - top },
+      { left: 0, top: 0, width: this.stage.stage.clientWidth, height: this.stage.stage.clientHeight });
+    const occluders: Box[] = [];
+    for (const side of document.querySelectorAll<HTMLElement>('.side.left, .side.right')) {
+      const css = getComputedStyle(side), box = side.getBoundingClientRect();
+      if (css.display === 'none' || css.visibility === 'hidden' || css.opacity === '0' || !box.width || !box.height) continue;
+      occluders.push({ left: box.left - stage.left, top: box.top - stage.top, width: box.width, height: box.height });
+    }
+    return { bounds, occluders };
+  }
+
+  /** Clip in iframe CSS pixels first; apply the editor zoom exactly once. */
+  private pageBounds(el: Element): Box | null {
     const win = this.editor.win;
-    if (!win) return null;
-    const style = win.getComputedStyle(el);
-    if (style.display === 'none' || style.visibility === 'hidden') return null;
-    const rect = el.getBoundingClientRect();
-    let left = rect.left, right = rect.right, top = rect.top, bottom = rect.bottom;
-    if (!rect.width && !rect.height) return null;
-    for (let parent = el.parentElement; parent && parent !== el.ownerDocument.body; parent = parent.parentElement) {
-      const css = win.getComputedStyle(parent);
-      const clip = parent.getBoundingClientRect();
+    if (!win || !el.isConnected) return null;
+    let left = 0, top = 0, right = this.editor.frame.clientWidth, bottom = this.editor.frame.clientHeight;
+    for (let node: Element | null = el; node; node = node.parentElement) {
+      const css = win.getComputedStyle(node);
+      if (css.display === 'none' || css.visibility === 'hidden' || css.visibility === 'collapse' || css.opacity === '0') return null;
+      if (node === el) continue;
+      const clip = node.getBoundingClientRect();
       if (/auto|scroll|hidden|clip/.test(css.overflowX)) {
-        left = Math.max(left, clip.left + parent.clientLeft);
-        right = Math.min(right, clip.left + parent.clientLeft + parent.clientWidth);
+        left = Math.max(left, clip.left + node.clientLeft);
+        right = Math.min(right, clip.left + node.clientLeft + node.clientWidth);
       }
       if (/auto|scroll|hidden|clip/.test(css.overflowY)) {
-        top = Math.max(top, clip.top + parent.clientTop);
-        bottom = Math.min(bottom, clip.top + parent.clientTop + parent.clientHeight);
+        top = Math.max(top, clip.top + node.clientTop);
+        bottom = Math.min(bottom, clip.top + node.clientTop + node.clientHeight);
       }
     }
-    left = Math.max(0, left); top = Math.max(0, top);
-    right = Math.min(this.editor.frame.clientWidth, right); bottom = Math.min(this.editor.frame.clientHeight, bottom);
-    if (right < left || bottom < top || (rect.width > 0 && right === left) || (rect.height > 0 && bottom === top)) return null;
-    return this.stage.toStage({ left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) });
+    return right > left && bottom > top ? { left, top, width: right - left, height: bottom - top } : null;
   }
+
+  private visibleBox(el: Element, view: CommentView): VisibleTarget | null {
+    const page = this.pageBounds(el);
+    const rect = el.getBoundingClientRect();
+    if (!page || !view.bounds || (!rect.width && !rect.height)) return null;
+    const bounds = intersect(this.stage.toStage(page), view.bounds);
+    const clipped = bounds && intersect(this.stage.toStage({ left: rect.left, top: rect.top, width: Math.max(1, rect.width), height: Math.max(1, rect.height) }), bounds);
+    if (!bounds || !clipped) return null;
+    const occluders = [...view.occluders, ...this.pageOccluders(el, clipped)];
+    const pieces = subtractAll(clipped, occluders);
+    if (!pieces.length) return null;
+    const left = Math.min(...pieces.map((box) => box.left)), top = Math.min(...pieces.map((box) => box.top));
+    const right = Math.max(...pieces.map((box) => box.left + box.width)), bottom = Math.max(...pieces.map((box) => box.top + box.height));
+    return { box: { left, top, width: right - left, height: bottom - top }, bounds, occluders };
+  }
+
+  /**
+   * Overflow clipping cannot see sticky/fixed siblings painted above a card.
+   * Nine iframe-only probes discover edge strips and central covers; subtract
+   * only opaque rectangular surfaces in those stacking contexts, not arbitrary
+   * hit boxes (e.g. a transparent SVG spanning the board). No page-wide scan,
+   * and editor markers/selection controls can never become page occluders.
+   */
+  private pageOccluders(target: Element, area: Box): Box[] {
+    const doc = target.ownerDocument, win = this.editor.win;
+    if (!doc.elementsFromPoint || !win) return [];
+    const z = this.stage.zoom;
+    const left = area.left / z, top = area.top / z, width = area.width / z, height = area.height / z;
+    const xs = [left + Math.min(0.5, width / 2), left + width / 2, left + width - Math.min(0.5, width / 2)];
+    const ys = [top + Math.min(0.5, height / 2), top + height / 2, top + height - Math.min(0.5, height / 2)];
+    const surfaces = new Set<Element>();
+    for (const x of xs) for (const y of ys) {
+      for (const hit of doc.elementsFromPoint(x, y)) {
+        if (target === hit || target.contains(hit)) break;
+        let surface: Element | null = null;
+        for (let node: Element | null = hit; node && !node.contains(target) && !target.contains(node); node = node.parentElement) {
+          const css = win.getComputedStyle(node);
+          if (!surface && opaqueBackground(css) && Number(css.opacity || 1) === 1) surface = node;
+          if (css.position === 'sticky' || css.position === 'fixed') {
+            if (surface) surfaces.add(surface);
+            break;
+          }
+        }
+      }
+    }
+    const boxes: Box[] = [];
+    for (const surface of surfaces) {
+      const bounds = this.pageBounds(surface);
+      const box = bounds && intersect(surface.getBoundingClientRect(), bounds);
+      if (box) boxes.push(this.stage.toStage(box));
+    }
+    return boxes;
+  }
+
+  /** Tiny targets/packed controls can extend past the target into a nearby sticky column. */
+  private controlPosition(target: Element, position: Box, view: VisibleTarget, occupied: readonly Box[]): Box | null {
+    if (position.left < view.box.left || position.top < view.box.top || position.left + position.width > view.box.left + view.box.width
+      || position.top + position.height > view.box.top + view.box.height) {
+      view.occluders.push(...this.pageOccluders(target, position));
+    }
+    return view.occluders.some((box) => !!intersect(position, box))
+      ? freePosition(position, view.bounds, [...occupied, ...view.occluders]) : position;
+  }
+}
+
+function intersect(a: Box, b: Box): Box | null {
+  const left = Math.max(a.left, b.left), top = Math.max(a.top, b.top);
+  const right = Math.min(a.left + a.width, b.left + b.width), bottom = Math.min(a.top + a.height, b.top + b.height);
+  return right > left && bottom > top ? { left, top, width: right - left, height: bottom - top } : null;
+}
+
+function subtractAll(box: Box, occluders: readonly Box[]): Box[] {
+  let pieces = [box];
+  for (const cover of occluders) pieces = pieces.flatMap((piece) => {
+    const overlap = intersect(piece, cover);
+    if (!overlap) return [piece];
+    const right = overlap.left + overlap.width, bottom = overlap.top + overlap.height;
+    return [
+      { left: piece.left, top: piece.top, width: piece.width, height: overlap.top - piece.top },
+      { left: piece.left, top: bottom, width: piece.width, height: piece.top + piece.height - bottom },
+      { left: piece.left, top: overlap.top, width: overlap.left - piece.left, height: overlap.height },
+      { left: right, top: overlap.top, width: piece.left + piece.width - right, height: overlap.height },
+    ].filter((part) => part.width > 0 && part.height > 0);
+  });
+  return pieces;
+}
+
+function opaqueBackground(css: CSSStyleDeclaration): boolean {
+  // Computed legacy sRGB colors serialize as rgb()/rgba(). Translucent or
+  // image-only surfaces are not evidence that their entire hit box is hidden.
+  return /^rgb\(/.test(css.backgroundColor) || /^rgba\([^,]+,[^,]+,[^,]+,\s*1\s*\)$/.test(css.backgroundColor);
+}
+
+function clipBorder(border: HTMLElement, view: VisibleTarget): void {
+  const css = getComputedStyle(border);
+  const pad = Math.max(0, (parseFloat(css.outlineWidth) || 0) + (parseFloat(css.outlineOffset) || 0));
+  const { left, top, width, height } = view.box;
+  const area = intersect({ left: left - pad, top: top - pad, width: width + pad * 2, height: height + pad * 2 }, view.bounds);
+  // Clip the outline too: its CSS outline-offset otherwise leaks six pixels
+  // back across an overflow/sticky boundary even after the box was trimmed.
+  const path = (area ? subtractAll(area, view.occluders) : []).map((box) => {
+    const x = box.left - left, y = box.top - top, r = x + box.width, b = y + box.height;
+    return `M${x} ${y}H${r}V${b}H${x}Z`;
+  }).join(' ');
+  border.style.clipPath = `path("${path}")`;
 }
 
 /** The transient action yields to saved markers and selection controls, within the visible canvas. */
 function addPosition(anchor: Box, width: number, height: number, bounds: Box, occupied: readonly Box[]): Box | null {
-  const gap = 5;
   const right = bounds.left + bounds.width, bottom = bounds.top + bounds.height;
   if (bounds.width < width || bounds.height < height || anchor.left >= right || anchor.top >= bottom
     || anchor.left + anchor.width <= bounds.left || anchor.top + anchor.height <= bounds.top) return null;
   const preferred = {
     left: Math.max(bounds.left, Math.min(anchor.left + anchor.width - width, right - width)),
     top: Math.max(bounds.top, Math.min(anchor.top - height - 8, bottom - height)),
+    width, height,
   };
+  return freePosition(preferred, bounds, occupied);
+}
+
+function freePosition(preferred: Box, bounds: Box, occupied: readonly Box[]): Box | null {
+  const { width, height } = preferred;
+  const gap = 5;
+  const right = bounds.left + bounds.width, bottom = bounds.top + bounds.height;
   // Every free rectangle starts/ends at a boundary or an obstacle edge. Search
   // those slots for the nearest fit, allowing overflow beside/below small targets.
   const xs = [preferred.left, bounds.left, right - width];
@@ -363,11 +532,12 @@ function addPosition(anchor: Box, width: number, height: number, bounds: Box, oc
 }
 
 /** Pack leftward near each target, then wrap down instead of clamping slots together. */
-function markerPosition(anchor: Box, width: number, height: number, stageWidth: number, occupied: readonly Box[]): Box {
+function markerPosition(anchor: Box, width: number, height: number, bounds: Box, occupied: readonly Box[], occluders: readonly Box[]): Box | null {
   const gap = 5;
-  const preferred = Math.max(0, Math.min(anchor.left + anchor.width - width - 3, stageWidth - width));
-  const minLeft = Math.max(0, Math.min(anchor.left, preferred));
-  const box = { left: preferred, top: Math.max(0, anchor.top + 3), width, height };
+  if (width > bounds.width || height > bounds.height) return null;
+  const preferred = Math.max(bounds.left, Math.min(anchor.left + anchor.width - width - 3, bounds.left + bounds.width - width));
+  const minLeft = Math.max(bounds.left, Math.min(anchor.left, preferred));
+  const box = { left: preferred, top: Math.max(bounds.top, anchor.top + 3), width, height };
   const overlaps = (other: Box) => box.left < other.left + other.width + gap && box.left + width + gap > other.left
     && box.top < other.top + other.height + gap && box.top + height + gap > other.top;
   while (occupied.some(overlaps)) {
@@ -376,6 +546,9 @@ function markerPosition(anchor: Box, width: number, height: number, stageWidth: 
       box.left = preferred;
       box.top += height + gap;
     }
+  }
+  if (box.top + height > bounds.top + bounds.height || occluders.some((cover) => !!intersect(box, cover))) {
+    return freePosition({ left: preferred, top: Math.max(bounds.top, anchor.top + 3), width, height }, bounds, [...occupied, ...occluders]);
   }
   return box;
 }

@@ -221,7 +221,7 @@ body:not(.has-doc) .zoom-label {
   color: var(--accent);
   font-size: 11px;
   font-weight: 600;
-  cursor: help;
+  cursor: default;
 }
 
 .live-note {
@@ -1521,16 +1521,6 @@ body:not(.has-doc) .stage {
   flex: none;
 }
 
-.made-with {
-  color: var(--text-3);
-  text-decoration: none;
-  font-size: 11px;
-}
-
-.made-with:hover {
-  color: var(--accent);
-}
-
 /* -------------------------------------------------------------- toasts */
 
 .toasts {
@@ -1750,8 +1740,10 @@ body:not(.has-doc) .stage {
 
 .comment-delete:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
 .comment-delete:active:not(:disabled) { background: var(--panel-2); }
-.comment-popover-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
-.comment-popover-actions .comment-help { margin: 0; }
+.comment-popover-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 10px; }
+.comment-popover-actions .comment-help { flex: 1 1 85px; margin: 0; }
+.comment-popover-buttons { display: flex; flex: none; gap: 8px; margin-left: auto; }
+.comment-cancel { height: 30px; font-size: 11.5px; white-space: nowrap; }
 .comment-save {
   flex: none;
   display: inline-flex;

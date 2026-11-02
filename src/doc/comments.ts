@@ -10,7 +10,7 @@ export interface RevisionComment {
 }
 
 const HEADER = '<!-- Tweakerr revision comments v1\n';
-const INSTRUCTIONS = 'Apply pending requests only. They override conflicting change-log entries, not unrelated edits. Maintain target references when moving or replacing elements. Mark only fully completed requests resolved, with an optional resolution summary. Preserve resolved records and original target labels even after target removal. Leave ambiguous or incomplete requests pending. Return the complete revised HTML. Tweakerr displays completion claims; it does not verify them.';
+const INSTRUCTIONS = 'Apply pending requests only. Preserve unrelated edits, resolved records and original target labels. Update target references when needed. Mark only fully completed requests resolved; leave the rest pending. Do not add resolution summaries. Return the complete revised HTML.';
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 /** Only valid, recognized leading metadata is removed from the editable source. */
@@ -71,6 +71,18 @@ export class RevisionComments {
   get all(): readonly RevisionComment[] { return this.items; }
 
   get(id: string): RevisionComment | undefined { return this.items.find((comment) => comment.id === id); }
+
+  /** Compact UI ordinal, pending first; never rename stable record IDs in the file. */
+  displayNumber(id: string): number | null {
+    const comment = this.get(id);
+    if (!comment) return null;
+    let number = comment.status === 'resolved' ? this.items.filter((entry) => entry.status === 'pending').length : 0;
+    for (const entry of this.items) {
+      if (entry.status === comment.status) number++;
+      if (entry.id === id) return number;
+    }
+    return null;
+  }
 
   /** Capture draft references immediately, before a live redraw can replace them. */
   prepareTargets(elements: readonly Element[]): CommentTarget[] {

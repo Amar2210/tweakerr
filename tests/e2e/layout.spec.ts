@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { launch } from './helpers';
 
 // Headless Chromium hides scrollbars by default; this bug needs real ones.
-test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } });
+test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'], ...(process.env.TWEAKERR_CHROME ? { executablePath: process.env.TWEAKERR_CHROME } : {}) } });
 
 // At these sizes the fitted page is just tall enough to need a scrollbar,
 // and the scrollbar's width used to shrink it just short enough not to.

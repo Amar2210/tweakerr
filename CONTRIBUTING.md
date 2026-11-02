@@ -12,8 +12,8 @@ npm run dev                        # http://localhost:5173/tweakerr.html
 
 | Script | What it does |
 |---|---|
-| `npm run build` | Type-check, then build `dist/tweakerr.html` (one file, no external resources). |
-| `npm test` | Unit tests (Vitest + jsdom): history, serialiser, colours, geometry. |
+| `npm run build` | Type-check, then build `dist/tweakerr.html` (one file, no external build assets). |
+| `npm test` | Unit tests (Vitest + jsdom): document/history, serialiser, revision comments, and editing helpers. |
 | `npm run test:e2e` | Build, then drive the real editor in Chromium (Playwright). |
 | `npm run check` | All of the above. Run it before sending a change. |
 
@@ -23,7 +23,7 @@ The stack is TypeScript, Vite and `vite-plugin-singlefile`, with no UI framework
 
 ```
 tweakerr.html          layout: toolbar · layers · canvas · properties · status bar
-src/main.ts            wiring: toolbar, keyboard, open/save, drag-and-drop
+src/main.ts            boot: direct editor, native Open/Save, keyboard and page export
 src/editor.ts          shared state + events (load, selection, change, layout…); the selection is a list
 src/canvas/
   stage.ts             the user's page in a sandboxed iframe; zoom; coordinates
@@ -54,11 +54,17 @@ src/io/files.ts        File System Access API with input/download fallbacks
 src/util/path.ts       SVG path data: parse, move an end, bend, straighten
 ```
 
-The page being edited is loaded into an `<iframe sandbox="allow-same-origin">` via `srcdoc`. Without `allow-scripts`, the page's scripts never run. `allow-same-origin` still lets the editor read and change its DOM directly. Clicks are matched to elements with `elementFromPoint`. So that SVG labels the page made click-through (`pointer-events: none`) can still be picked, `Stage` adds one adopted stylesheet. It isn't in the DOM, so it never reaches history or the saved file.
+The editor runs directly in the root document. The imported page is the `#frame` sandboxed `srcdoc` iframe; `allow-same-origin` lets the editor read and change its DOM. Scripts execute during live-page detection and remain enabled for live pages. Open only trusted HTML: this is not a security boundary or sanitizer for hostile pages, and imported scripts/assets may make their own network requests. Native Open, Save, Save As, drag-and-drop and keyboard shortcuts use the direct editor paths.
+
+Clicks are matched to page elements with `elementFromPoint`. So that SVG labels the page made click-through (`pointer-events: none`) can still be picked, `Stage` adds one adopted stylesheet. It isn't in the DOM, so it never reaches history or the saved file.
 
 **Live pages.** If the page has scripts, `Stage.mount` first loads it with `allow-scripts`, waits for it to settle, and compares it with the page as written (`drawsItself`). If the scripts drew a real part of it, the page stays live: a `LiveEdits` (src/doc/live.ts) is attached. Otherwise it's reloaded with scripts off.
 
 On a live page, `setStyle`/`setAttr` write into one `<style id="tweakerr-edits">` instead of inline styles. Each element gets a rule keyed by a selector: its id, else a `data-id`-like attribute, else an `:nth-child` path from the nearest ancestor with one. All rules are `!important`, because page code often sets inline styles. The rules live in the style element's single text node, and text swaps in one of its attributes, so history records them like any other DOM change. Saving (`livefile.ts`) writes the original file text plus that block, with swaps applied; the DOM is never serialised. HTML boxes move with `left`/`top` rather than `translate`, because connector code often measures with `offsetLeft`. After such a change, `watchPage` fires a `resize` so the page can redraw, then finds the selection again by selector. Code that redraws often replaces its elements, so anything holding an old copy goes through `LiveEdits.relocate` (`computed()` and the selection do this) to reach the one on the page. A reshaped arrow on a live page is a `d: path("…")` rule, which also applies to the copies the code draws later.
+
+**Revision comments.** The editor keeps request records outside the page DOM. Saving prefixes their versioned metadata and portable external-LLM instructions; Tweakerr has no API connection. Preserve resolved records, stable IDs, target keys, and optional `resolution` summaries even though the short handoff instruction asks for no new summaries.
+
+**Development loading.** The production file has inline assets. In dev mode Vite serves the root editor and its source modules directly; no opaque workspace, message bridge, or special `null`-origin permission is needed.
 
 ## Rules that keep saved files clean
 
@@ -68,13 +74,17 @@ On a live page, `setStyle`/`setAttr` write into one `<style id="tweakerr-edits">
 4. **Watch for cross-frame objects.** Page nodes come from the iframe's window, so `el instanceof HTMLElement` is false for them. Check `namespaceURI` or `localName` instead.
 5. **Think in selections.** `editor.selection` is a list, and `editor.selected` is the main (last picked) element. The panel reads values from the main one and writes to all of them. Commands that move or delete use `editor.selectionRoots`, so a card and its heading selected together are only moved once.
 6. **Write styles through `setStyle`/`setAttr`** (src/doc/style.ts), never `el.style` or `setAttribute` directly, so live pages get rules for free. An attribute with no CSS twin (line ends, `href`) can't be saved on a live page, so its control is hidden there.
-7. **Offline only.** No CDN, fonts or network calls in the editor. The build must work opened from disk.
+7. **Offline editing and manual handoff.** Keep editor assets inline: no CDN or remote fonts for the app. The build must work opened from disk, without model requests. Sharing saved HTML with an external LLM is the user's separate action. Imported page scripts/assets may have their own network behaviour.
+8. **A Save acknowledges its snapshot and destination.** Keep independent in-flight Save/Save As operations tied to their captured history checkpoints. An older in-place write finishing after Save As must not clean or rename the newer destination. Do not add a global Save mutex.
+9. **Separate visible comment numbers from stable record IDs.** Compact `#1`, `#2`, … labels are derived UI ordinals, never renamed historical IDs or extra saved fields. Cancel/Escape removes a fresh draft, while existing-note Escape and ordinary outside-close/Save retain autosave behavior.
 
 ## Tests
 
-- Browser tests live in `tests/e2e/` and run against the built `dist/tweakerr.html`.
+- Browser tests live in `tests/e2e/` and run against the built `dist/tweakerr.html`. Toolbar, native file permissions, canvas controls, comments and `window.tweakerr` are in the root page; `page.frameLocator('#frame')` accesses the imported document. Keep a real native Open helper and test keyboard Save without a workspace bridge or approval click.
+- Comment lifecycle/numbering and overlay clipping regressions are in `tests/unit/comment-lifecycle-numbering.test.ts` and `tests/unit/comment-overlay-clipping.test.ts`. IDs and target keys must remain stable, and deleted/cancelled comment text must not enter the page-edit journal.
+- The bounded `tests/runtime/comment-lifecycle-native-smoke.mjs` check uses installed native Chrome/Playwright and disposable local fixtures. It covers draft Cancel/Escape, keyboard Save, compact numbering, export/journal contents, Undo/Redo, and a narrow-screen footer. It makes no provider requests and does not replace or authorize restarting the stopped E2E regression suite.
 - `helpers.ts` has `domDiff(before, after)`. It parses both files and lists every attribute, text and child-list difference. Most tests end with "save, then the diff must be exactly these lines". Please keep that habit for new features.
-- `tests/fixtures/board.html` is a typical AI-written page: a `<style>` block, an `!important` rule, flex cards, an absolutely positioned badge, SVG arrows (two sharing one arrowhead), and a script that must not run.
+- `tests/fixtures/board.html` is a typical AI-written page: a `<style>` block, an `!important` rule, flex cards, an absolutely positioned badge, SVG arrows (two sharing one arrowhead), and a script that does not draw the page. Detection can execute a script before static fallback, even if scripts are disabled in the replacement iframe. Use only trusted fixtures; the direct editor does not isolate hostile page code.
 - `tests/e2e/real-files.spec.ts` runs the same done-check against any files you point it at:
 
   ```sh
@@ -92,7 +102,7 @@ GitHub Actions does the building and publishing (`.github/workflows/`):
 
 To make a release:
 
-Use three-part semantic versions: **MAJOR.MINOR.PATCH**. Git tags include a `v` prefix, while `package.json` and `package-lock.json` contain the same version without it. The current release is `v0.6.0`.
+Use three-part semantic versions: **MAJOR.MINOR.PATCH**. Git tags include a `v` prefix, while `package.json` and `package-lock.json` contain the same version without it. The current package version and latest published release are `0.6.0` / `v0.6.0`. Subsequent comment improvements on `main` have not been tagged as a new release.
 
 | Change | Example next version from `0.6.0` |
 |---|---|
@@ -103,7 +113,7 @@ Use three-part semantic versions: **MAJOR.MINOR.PATCH**. Git tags include a `v` 
 Reset PATCH to zero when MINOR increases; reset MINOR and PATCH to zero when MAJOR increases. Documentation-only updates do not require a new release. Never reuse a published release tag.
 
 1. Run `npm run check`.
-2. Choose the next version, then bump it: for example, `npm version 0.6.1 --no-git-tag-version` for a bug fix. This updates `package.json` and `package-lock.json`. Update the current version in the README and commit the changes.
+2. Choose the release version. For a future bug fix, for example, `npm version 0.6.1 --no-git-tag-version` updates `package.json` and `package-lock.json`. Keep the README consistent and commit the changes only once release checks and approval are complete.
 3. Tag it. The tag's message becomes the release notes:
 
    ```sh

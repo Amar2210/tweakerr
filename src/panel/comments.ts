@@ -51,17 +51,18 @@ export class CommentSidebar {
 
   private entry(comment: RevisionComment): HTMLElement {
     const pending = comment.status === 'pending';
+    const number = this.editor.comments!.displayNumber(comment.id)!;
     return h('article', { class: 'comment-history-item', dataset: { commentId: comment.id } },
-      h('div', { class: 'comment-history-heading' }, h('strong', { text: comment.id }),
+      h('div', { class: 'comment-history-heading' }, h('strong', { text: `#${number}`, title: `Record ID: ${comment.id}` }),
         pending ? h('button', {
           class: 'comment-edit', text: 'Edit',
           dataset: { commentAction: `edit:${comment.id}` },
-          attrs: { type: 'button', 'aria-label': `Edit pending comment ${comment.id}` },
+          attrs: { type: 'button', 'aria-label': `Edit pending comment ${number}` },
           on: { click: () => this.open(comment.id) },
         }) : h('button', {
           class: 'comment-delete', text: '×', title: 'Delete this comment completely',
           dataset: { commentAction: `delete:${comment.id}` },
-          attrs: { type: 'button', 'aria-label': `Delete resolved comment ${comment.id}` },
+          attrs: { type: 'button', 'aria-label': `Delete resolved comment ${number}` },
           on: { click: () => this.remove(comment.id) },
         }),
       ),

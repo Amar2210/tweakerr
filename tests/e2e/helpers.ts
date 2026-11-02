@@ -27,7 +27,16 @@ export async function openFile(page: Page, name: string, path = fixturePath(name
   const chooser = page.waitForEvent('filechooser');
   await page.locator('.toolbar [data-cmd="open"]').click();
   await (await chooser).setFiles(path);
-  await expect(page.locator('#file-name')).toHaveText(name.split('/').pop()!);
+  await expect(page.locator('#file-name')).toHaveText(name.split(/[\\/]/).pop()!);
+  await page.waitForFunction(() => (window as any).tweakerr.editor.doc?.readyState === 'complete');
+}
+
+/** Open supplied HTML through the toolbar's real file-input path. */
+export async function openHtml(page: Page, name: string, html: string): Promise<void> {
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('.toolbar [data-cmd="open"]').click();
+  await (await chooser).setFiles({ name, mimeType: 'text/html', buffer: Buffer.from(html) });
+  await expect(page.locator('#file-name')).toHaveText(name);
   await page.waitForFunction(() => (window as any).tweakerr.editor.doc?.readyState === 'complete');
 }
 

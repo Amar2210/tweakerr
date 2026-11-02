@@ -51,7 +51,7 @@ test('Comments view visibility follows current records, with independent collaps
   await clickIn(page, '#near');
   await page.getByRole('button', { name: 'Add comment', exact: true }).click();
   await request(page).fill('Keep the original card separate.');
-  await request(page).press('Escape');
+  await page.getByRole('button', { name: 'Save comment', exact: true }).click();
   await expect(commentsButton(page)).toBeVisible();
   await expect(page.locator('#layers')).toBeVisible(); // first comment must not switch views
   await expect(page.locator('#comment-history')).toBeHidden();
@@ -74,9 +74,9 @@ test('Comments view visibility follows current records, with independent collaps
   await page.locator('#layers-strip').click();
   await expect(page.locator('#layers')).toBeVisible();
   await commentsButton(page).click();
-  await page.getByRole('button', { name: 'Edit pending comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit pending comment 1', exact: true }).click();
   await expect(request(page)).toHaveValue('Keep the original card separate.');
-  await page.getByRole('button', { name: 'Delete comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete comment 1', exact: true }).click();
   await expect(commentsButton(page)).toBeHidden();
   await expect(page.locator('#layers')).toBeVisible();
   await expect(page.locator('#comment-history')).toBeHidden();
@@ -96,7 +96,7 @@ test('Comments view visibility follows current records, with independent collaps
   await expect(page.locator('#layers')).toBeVisible(); // each new file starts in Layers
   await commentsButton(page).click();
   await expect(page.getByRole('heading', { name: 'Resolved (1)', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Delete resolved comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete resolved comment 1', exact: true }).click();
   await expect(page.locator('#layers')).toBeVisible();
   await expect(commentsButton(page)).toBeHidden();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
@@ -234,7 +234,7 @@ test('keyboard sidebar Edit returns to the current action after typing and never
   const notes = await records(page, [{ selectors: ['#near'], status: 'pending', text: 'Keep this request.' }]);
   await mount(page, writeRevisionComments(source, notes));
   await commentsButton(page).click();
-  const edit = page.getByRole('button', { name: 'Edit pending comment C1', exact: true });
+  const edit = page.getByRole('button', { name: 'Edit pending comment 1', exact: true });
   await edit.focus();
   await edit.press('Enter');
   await expect(request(page)).toBeFocused();
@@ -246,7 +246,7 @@ test('keyboard sidebar Edit returns to the current action after typing and never
   expect(await edit.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
   await edit.press('Space');
   await expect(request(page)).toHaveValue('Keep this request. Updated.');
-  await page.getByRole('button', { name: 'Delete comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete comment 1', exact: true }).click();
   await expect(edit).toHaveCount(0);
   await expect(page.locator('#layers')).toBeVisible();
   await expect(page.locator('#canvas')).toBeFocused();
@@ -271,7 +271,7 @@ test('missing and ambiguous targets stay readable/unavailable and pending reques
   await expect(page.locator('#comment-history .comment-target-unavailable')).toHaveCount(2);
   await expect(page.locator('#comment-history .comment-locate')).toHaveCount(0);
   expect(await selectedId(page)).toBeNull();
-  await page.getByRole('button', { name: 'Edit pending comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit pending comment 1', exact: true }).click();
   await expect(request(page)).toHaveValue(notes[0].text);
   await expect(page.locator('.comment-popover')).toContainText('unavailable');
   await request(page).fill('Restore the removed card, not its twin.');
@@ -279,8 +279,8 @@ test('missing and ambiguous targets stay readable/unavailable and pending reques
   const saved = readRevisionComments(await saveViaDownload(page));
   expect(saved.comments[0]).toMatchObject({ status: 'pending', text: 'Restore the removed card, not its twin.' });
   expect(saved.comments[1]).toEqual(notes[1]);
-  await page.getByRole('button', { name: 'Edit pending comment C1', exact: true }).click();
-  await page.getByRole('button', { name: 'Delete comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit pending comment 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete comment 1', exact: true }).click();
   await expect(card(page, 'C1')).toHaveCount(0);
   await expect(card(page, 'C2')).toBeVisible();
 });

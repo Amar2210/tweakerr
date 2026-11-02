@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { launch, openFile, pointIn } from './helpers';
 
 // Real scrollbars (headless Chromium hides them by default).
-test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } });
+test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'], ...(process.env.TWEAKERR_CHROME ? { executablePath: process.env.TWEAKERR_CHROME } : {}) } });
 
 const scrollLeft = (page: Page) => page.evaluate(() => (window as any).tweakerr.editor.doc.getElementById('scroller').scrollLeft as number);
 

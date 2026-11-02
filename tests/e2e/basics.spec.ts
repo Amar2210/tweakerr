@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { clickIn, domDiff, launch, openFile, readFixture, saveViaDownload, selectedId, trackErrors } from './helpers';
 
-test('empty state, demo, and the credit line', async ({ page }) => {
+test('empty state and demo have no in-app tool credits', async ({ page }) => {
   const errors = trackErrors(page);
   await launch(page);
   await expect(page.locator('#empty')).toBeVisible();
-  await expect(page.locator('.made-with')).toHaveText('Made with Claude');
+  await expect(page.locator('.made-with')).toHaveCount(0);
   await expect(page.locator('.toolbar [data-cmd="save"]')).toBeDisabled();
 
   await page.locator('.empty [data-cmd="demo"]').click();

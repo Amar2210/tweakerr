@@ -16,6 +16,7 @@ export default defineConfig({
   fullyParallel: true,
   reporter: [['list']],
   use: {
+    launchOptions: process.env.TWEAKERR_CHROME ? { executablePath: process.env.TWEAKERR_CHROME } : undefined,
     viewport: { width: 1440, height: 900 },
     acceptDownloads: true,
     trace: 'retain-on-failure',

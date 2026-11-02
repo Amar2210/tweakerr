@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readRevisionComments } from '../../src/doc/comments';
 import { readChangeLog } from '../../src/doc/changelog';
-import { launch, openFile, select } from './helpers';
+import { launch, openFile, openHtml, select } from './helpers';
 
 const request = (page: Page) => page.getByRole('textbox', { name: 'Revision request', exact: true });
 const commentsOf = (html: string) => readRevisionComments(readChangeLog(html).source).comments;
@@ -102,10 +102,9 @@ for (const inPlace of [true, false]) {
     await setup(page, inPlace);
     await page.keyboard.press(shortcut);
     await expect.poll(() => page.evaluate(() => (window as any).pendingSave.writes.length)).toBe(1);
-    await page.evaluate(async () => {
-      const { stage } = (window as any).tweakerr;
-      await stage.mount('<!DOCTYPE html><html><body><h1 id="new-target">New file</h1></body></html>', 'new-file.html', null);
-    });
+    // Open another file through the native root UI while the prior write waits.
+    page.once('dialog', (dialog) => dialog.accept());
+    await openHtml(page, 'new-file.html', '<!DOCTYPE html><html><body><h1 id="new-target">New file</h1></body></html>');
     await select(page, '#new-target');
     await page.getByRole('button', { name: 'Add comment', exact: true }).click();
     await request(page).fill('Only in the newly loaded file.');
@@ -123,15 +122,15 @@ test('an older in-place write cannot clean the newer Save As destination', async
   await setup(page, true); // A is the current in-place handle.
   await request(page).fill('first');
   await page.evaluate(() => {
-    const state = (window as any).pendingSaveAs = { written: null as string | null, disk: null as string | null, release: () => {}, handle: null as any };
+    const state = (window as any).pendingSaveAs = { written: null as string | null, disk: null as string | null, writes: [] as string[], release: () => {}, handle: null as any, defer: true };
     state.handle = {
       kind: 'file', name: 'destination-b.html',
       getFile: async () => new File([state.disk ?? ''], 'destination-b.html', { type: 'text/html' }),
       async createWritable() {
         return {
           async write(html: string) {
-            state.written = html;
-            await new Promise<void>((resolve) => { state.release = resolve; });
+            state.written = html; state.writes.push(html);
+            if (state.defer) await new Promise<void>((resolve) => { state.release = resolve; });
           },
           async close() { state.disk = state.written; },
         };
@@ -160,4 +159,10 @@ test('an older in-place write cannot clean the newer Save As destination', async
   await expect(request(page)).toHaveValue('second');
   await expect(page.locator('#file-name')).toHaveClass(/dirty/);
   await expect(page.locator('#file-name')).toHaveText('• destination-b.html');
+
+  // Prove B remains the destination with a subsequent actual write.
+  await page.evaluate(() => { (window as any).pendingSaveAs.defer = false; });
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => page.evaluate(() => (window as any).pendingSaveAs.writes.length)).toBe(2);
+  expect(await page.evaluate(() => (window as any).pendingSave.writes.length)).toBe(1);
 });

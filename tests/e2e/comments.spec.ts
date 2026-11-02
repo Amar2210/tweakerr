@@ -32,7 +32,7 @@ test('single comment edits, collapses, saves while typing and deletes without UI
   await expect(page.locator('.comment-target-border')).toHaveCount(1);
   expect(await page.evaluate(() => (window as any).tweakerr.editor.selected.id)).toBe('box-a');
   await collapse(page);
-  await page.getByRole('button', { name: 'Open comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Open comment 1', exact: true }).click();
   await expect(request(page)).toHaveValue(text);
   await request(page).fill(text + ' Keep its label.');
   // No blur/Enter before saving: the active text must be included.
@@ -47,9 +47,9 @@ test('single comment edits, collapses, saves while typing and deletes without UI
   expect(await page.evaluate(() => (window as any).tweakerr.editor.doc.documentElement.outerHTML)).not.toMatch(/comment-marker|comment-popover|Tweakerr revision comments|data-tweakerr/);
   await mount(page, saved);
   await expect(page.locator('.comment-marker')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Open comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Open comment 1', exact: true }).click();
   await expect(request(page)).toHaveValue(text + ' Keep its label.');
-  await page.getByRole('button', { name: 'Delete comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete comment 1', exact: true }).click();
   await expect(page.locator('.comment-marker')).toHaveCount(0);
   await page.locator('[data-cmd="undo"]').click();
   await expect(page.locator('.comment-marker')).toHaveCount(1);
@@ -100,7 +100,7 @@ test('Save comment confirms pending notes without saving the page or resolving t
   await page.locator('[data-cmd="redo"]').click();
   await expect(page.locator('.comment-marker')).toHaveCount(1);
   await page.getByRole('button', { name: 'Comments', exact: true }).click();
-  const edit = page.getByRole('button', { name: 'Edit pending comment C1', exact: true });
+  const edit = page.getByRole('button', { name: 'Edit pending comment 1', exact: true });
   await edit.click();
   await request(page).fill('Keep the labels distinct and align the cards.');
   await request(page).press('Tab');
@@ -117,7 +117,7 @@ test('Save comment confirms pending notes without saving the page or resolving t
   expect(split(saved).changes).toEqual([]);
   await expect(page.locator('#file-name')).not.toHaveClass(/dirty/);
   await mount(page, saved);
-  await page.getByRole('button', { name: 'Open comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Open comment 1', exact: true }).click();
   await expect(request(page)).toHaveValue('Keep the labels distinct and align the cards.');
   await saveComment.click();
   await expect(page.locator('#file-name')).not.toHaveClass(/dirty/);
@@ -139,13 +139,13 @@ test('multi-selection has one shared request, individual borders and matching ma
   expect(split(await saveViaDownload(page)).comments[0].targets).toHaveLength(2);
   expect(await page.evaluate(() => (window as any).tweakerr.editor.comments.all.length)).toBe(1);
   await collapse(page);
-  await page.getByRole('button', { name: 'Open comment C1', exact: true }).nth(1).click();
+  await page.getByRole('button', { name: 'Open comment 1', exact: true }).nth(1).click();
   await request(page).fill('Keep both cards; align them instead.');
   await collapse(page);
-  await expect(page.locator('.comment-marker').first()).toHaveAttribute('title', 'C1: Keep both cards; align them instead.');
-  await expect(page.locator('.comment-marker').nth(1)).toHaveAttribute('title', 'C1: Keep both cards; align them instead.');
-  await page.getByRole('button', { name: 'Open comment C1', exact: true }).first().click();
-  await page.getByRole('button', { name: 'Delete comment C1', exact: true }).click();
+  await expect(page.locator('.comment-marker').first()).toHaveAttribute('title', 'Comment 1: Keep both cards; align them instead.\nRecord ID: C1');
+  await expect(page.locator('.comment-marker').nth(1)).toHaveAttribute('title', 'Comment 1: Keep both cards; align them instead.\nRecord ID: C1');
+  await page.getByRole('button', { name: 'Open comment 1', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Delete comment 1', exact: true }).click();
   await expect(page.locator('.comment-marker, .comment-target-border')).toHaveCount(0);
 });
 
@@ -201,8 +201,8 @@ test('card marker keeps its target and relative slot through child selections, d
   await pick('article.card', 0.95);
   await action.click();
   await request(page).fill('Keep this request on the whole Action card.');
-  await request(page).press('Escape');
-  const marker = page.getByRole('button', { name: 'Open comment C1', exact: true });
+  await page.getByRole('button', { name: 'Save comment', exact: true }).click();
+  const marker = page.getByRole('button', { name: 'Open comment 1', exact: true });
   const originalNode = (await marker.elementHandle())!;
   const relativeRect = () => marker.evaluate((el) => {
     const { editor, stage } = (window as any).tweakerr;
@@ -242,15 +242,15 @@ test('card marker keeps its target and relative slot through child selections, d
   await pick('h3');
   await action.click();
   await request(page).fill('Change only the Action heading.');
-  await request(page).press('Escape');
+  await page.getByRole('button', { name: 'Save comment', exact: true }).click();
   await expectStable();
-  const childRect = await page.getByRole('button', { name: 'Open comment C2', exact: true }).boundingBox();
+  const childRect = await page.getByRole('button', { name: 'Open comment 2', exact: true }).boundingBox();
   await pick('article.card', 0.95);
   await action.click();
   await request(page).fill('Another request on the whole card.');
-  await request(page).press('Escape');
+  await page.getByRole('button', { name: 'Save comment', exact: true }).click();
   await expectStable();
-  expect(await page.getByRole('button', { name: 'Open comment C2', exact: true }).boundingBox()).toEqual(childRect);
+  expect(await page.getByRole('button', { name: 'Open comment 2', exact: true }).boundingBox()).toEqual(childRect);
   await page.screenshot({ path: info.outputPath('article-later-notes.png') });
   const saved = split(await saveViaDownload(page));
   expect(saved.comments[0].targets[0]).toEqual(originalTarget);
@@ -259,7 +259,7 @@ test('card marker keeps its target and relative slot through child selections, d
   expect(saved.changes).toEqual([]);
   expect(await domDiff(page, source, saved.source)).toEqual([]);
   for (const [id, text] of [['C1', 'Keep this request on the whole Action card.'], ['C2', 'Change only the Action heading.'], ['C3', 'Another request on the whole card.']]) {
-    await page.getByRole('button', { name: `Open comment ${id}`, exact: true }).click({ timeout: 2500 });
+    await page.getByRole('button', { name: `Open comment ${id.slice(1)}`, exact: true }).click({ timeout: 2500 });
     await expect(request(page)).toHaveValue(text);
     await request(page).press('Escape');
   }
@@ -273,7 +273,7 @@ test('top-edge selection action does not cover an existing comment marker', asyn
   await collapse(page);
   // Use a real hit-tested click, not force or dispatchEvent: Add comment used
   // to cover this marker when the target had no room for a toolbar above it.
-  await page.getByRole('button', { name: 'Open comment C1', exact: true }).click({ timeout: 2500 });
+  await page.getByRole('button', { name: 'Open comment 1', exact: true }).click({ timeout: 2500 });
   await expect(request(page)).toHaveValue('The top-edge marker must remain clickable.');
 });
 
@@ -288,7 +288,7 @@ test('every note on a narrow left-edge target stays clickable through scroll and
   await expect(page.locator('.comment-marker')).toHaveCount(6);
   const reopenEveryNote = async () => {
     for (let i = 1; i <= 6; i++) {
-      await page.getByRole('button', { name: `Open comment C${i}`, exact: true }).click({ timeout: 2500 });
+      await page.getByRole('button', { name: `Open comment ${i}`, exact: true }).click({ timeout: 2500 });
       await expect(request(page)).toHaveValue(`Narrow target request ${i}`);
       await request(page).press('Escape');
     }
@@ -304,7 +304,7 @@ test('keyboard opening/editing/collapse keeps focus on the stable marker', async
   await openFile(page, 'board.html');
   await add(page, '#box-a', 'Keyboard request');
   await collapse(page);
-  const marker = page.getByRole('button', { name: 'Open comment C1', exact: true });
+  const marker = page.getByRole('button', { name: 'Open comment 1', exact: true });
   await marker.focus();
   await marker.press('Enter');
   await expect(request(page)).toBeFocused();
@@ -340,7 +340,7 @@ test('typing session is one undo step, and metadata changes participate in dirty
   await expect(page.locator('.comment-marker')).toHaveCount(0);
   await expect(page.locator('#file-name')).not.toHaveClass(/dirty/);
   await page.locator('[data-cmd="redo"]').click();
-  await page.getByRole('button', { name: 'Open comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Open comment 1', exact: true }).click();
   await expect(request(page)).toHaveValue('Move this card');
   expect(split(await saveViaDownload(page)).changes).toEqual([]);
 });
@@ -368,7 +368,7 @@ test('LLM-resolved imports survive removed targets and are readable/deletable on
   await expect(history.locator('img')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^(Resolve|Reopen)(\s|$)/ })).toHaveCount(0);
   expect(split(await saveViaDownload(page)).comments).toEqual(saved.comments);
-  await page.getByRole('button', { name: 'Delete resolved comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete resolved comment 1', exact: true }).click();
   const deleted = await saveViaDownload(page);
   expect(deleted).not.toContain('Remove this quote card.');
   expect(deleted).not.toContain('Removed the card.');
@@ -411,7 +411,7 @@ test('script-generated no-ID targets survive redraw, reorder, scrolling and save
   const text = 'Move Contractors next to Employee data without merging.';
   await add(page, '#board .node:first-child', text);
   const reopenAtTarget = async () => {
-    const marker = page.getByRole('button', { name: 'Open comment C1', exact: true });
+    const marker = page.getByRole('button', { name: 'Open comment 1', exact: true });
     await expect.poll(() => marker.evaluate((el) => {
       const { editor, stage } = (window as any).tweakerr;
       const target = editor.comments.targets(editor.comments.get('C1'))[0].getBoundingClientRect();
@@ -493,13 +493,13 @@ test('missing generated targets stay pending and are editable/deletable from rec
   await page.getByRole('button', { name: 'Comments', exact: true }).click();
   const recovery = page.getByRole('region', { name: 'Pending comments', exact: true });
   await expect(recovery).toContainText('Target unavailable');
-  await page.getByRole('button', { name: 'Edit pending comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit pending comment 1', exact: true }).click();
   await expect(request(page)).toHaveValue('Keep this pending if its target disappears.');
   await request(page).fill('The prior target disappeared; restore the separate Contractors box.');
   const saved = split(await saveViaDownload(page));
   expect(saved.comments[0].status).toBe('pending');
   expect(saved.comments[0].text).toContain('restore the separate');
-  await page.getByRole('button', { name: 'Delete comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete comment 1', exact: true }).click();
   await expect(recovery).toHaveCount(0);
   expect(await saveViaDownload(page)).not.toContain('restore the separate');
 });
@@ -534,7 +534,7 @@ test('malformed/unrelated metadata survives adding and deleting a managed commen
   expect(split(first).comments).toHaveLength(1);
   expect(first).toContain(malformed.trim());
   expect(first).toContain(own.trim());
-  await page.getByRole('button', { name: 'Delete comment C1', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete comment 1', exact: true }).click();
   const deleted = await saveViaDownload(page);
   expect(deleted).not.toContain('A separate managed note.');
   expect(deleted).toContain(malformed.trim());
